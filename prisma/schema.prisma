@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  roleIndustry    String
+  goals           String
+  tone            String
+  constraints     String
+  preferredFormat String
+  dos             String?
+  donts           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model SessionOutput {
+  id          String   @id @default(cuid())
+  profileId   String
+  task        String
+  refinement  String?
+  reportJson  Json
+  feedback    String?
+  createdAt   DateTime @default(now())
+}
