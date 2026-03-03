@@ -37,29 +37,46 @@ export function AssistantApp() {
   //const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   // const [citationView, setCitationView] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null); //for debugging / display purposes only; not user for auth since we have cookies
+
+  const [error, setError] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => task.trim().length > 0, [task]);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/profile");
-      if (!res.ok) return;
-      const data = (await res.json()) as { profile: UserProfile | null };
-      if (data.profile) setProfile(data.profile);
+      try {
+        const res = await fetch("/api/profile");
+        if (!res.ok) return;
+        const data = (await res.json()) as { profile: UserProfile | null };
+        if (data.profile) setProfile(data.profile);
+      } catch {}
     })();
   }, []);
 
   async function submitFeedback(rating: "up" | "down") {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setError("Generate a report first so there is a session to rate.");
+      return;
+    }
 
-    await fetch("/api/feedback", {
+    setError(null);
+
+    const res = await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, rating, feedback: "" }),
     });
+
+    if (!res.ok) {
+      const text = await res.text();
+      setError(`Feedback failed (${res.status}): ${text}`);
+    }
   }
 
   async function submitRequest() {
+    setError(null);
+
     const payload: GenerateRequest = {
       profile,
       task,
@@ -67,6 +84,7 @@ export function AssistantApp() {
       options,
       history,
     };
+
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -88,9 +106,12 @@ export function AssistantApp() {
       sessionId: string;
       userId: string;
     };
+
     setLatestPrompt(data.prompt);
     setOutput(data.response);
     setSessionId(data.sessionId);
+    setUserId(data.userId);
+
     if (refinement.trim()) {
       setHistory((prev) => [...prev, refinement.trim()]);
       setRefinement("");
@@ -104,6 +125,12 @@ export function AssistantApp() {
         Capture profile → submit request → generate structured report → refine
         iteratively.
       </p>
+
+      {error && (
+        <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <section className="mt-6 grid gap-6 md:grid-cols-2">
         <div className="rounded-xl bg-white p-4 shadow">
@@ -212,22 +239,31 @@ export function AssistantApp() {
             </label>
           </div>
 
-          <div className="mt-4 flex gap-2">
-            <button
-              disabled={!canSubmit}
-              onClick={submitRequest}
-              className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
-            >
-              Generate / Regenerate
-            </button>
-            <button
-              onClick={() =>
-                output && setSavedReports((prev) => [output, ...prev])
-              }
-              className="rounded border border-slate-300 px-4 py-2"
-            >
-              Save Revision
-            </button>
+          <div className="mt-4">
+            <div className="flex gap-2">
+              <button
+                disabled={!canSubmit}
+                onClick={submitRequest}
+                className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+              >
+                Generate / Regenerate
+              </button>
+
+              <button
+                onClick={() =>
+                  output && setSavedReports((prev) => [output, ...prev])
+                }
+                className="rounded border border-slate-300 px-4 py-2"
+              >
+                Save Revision
+              </button>
+            </div>
+
+            {(userId || sessionId) && (
+              <p className="mt-2 text-xs text-slate-500">
+                userId: {userId} {sessionId ? `| sessionId: ${sessionId}` : ""}
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -246,14 +282,17 @@ export function AssistantApp() {
             />
             <ReportBlock title="Steps" lines={output.steps} />
             <ReportBlock title="Risks" lines={output.risks} />
+
             {output.citations.length > 0 && (
               <ReportBlock title="Citations" lines={output.citations} />
             )}
+
             <details>
               <summary className="cursor-pointer font-medium">
                 View assembled prompt
               </summary>
-              <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs">
+
+              <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
                 {latestPrompt}
               </pre>
             </details>
