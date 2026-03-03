@@ -35,7 +35,7 @@ export function AssistantApp() {
   const [latestPrompt, setLatestPrompt] = useState("");
   const [savedReports, setSavedReports] = useState<StructuredResponse[]>([]);
   //const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
-  // const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   // const [citationView, setCitationView] = useState(true);
 
   const canSubmit = useMemo(() => task.trim().length > 0, [task]);
@@ -60,9 +60,15 @@ export function AssistantApp() {
 
     if (!res.ok) return;
 
-    const data = await res.json();
+    const data = (await res.json()) as {
+      prompt: string;
+      response: StructuredResponse;
+      sessionId: string;
+      userId: string;
+    };
     setLatestPrompt(data.prompt);
     setOutput(data.response);
+    setSessionId(data.sessionId);
     if (refinement.trim()) {
       setHistory((prev) => [...prev, refinement.trim()]);
       setRefinement("");
@@ -218,7 +224,7 @@ export function AssistantApp() {
             />
             <ReportBlock title="Steps" lines={output.steps} />
             <ReportBlock title="Risks" lines={output.risks} />
-            {output.citations && (
+            {output.citations.length > 0 && (
               <ReportBlock title="Citations" lines={output.citations} />
             )}
             <details>

@@ -30,7 +30,7 @@ export interface StructuredResponse {
   recommendation: string;
   steps: string[];
   risks: string[];
-  citations?: string[];
+  citations: string[];
 }
 
 export interface StoredUser {
