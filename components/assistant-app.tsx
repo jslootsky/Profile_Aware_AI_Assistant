@@ -38,6 +38,7 @@ export function AssistantApp() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   // const [citationView, setCitationView] = useState(true);
   const [userId, setUserId] = useState<string | null>(null); //for debugging / display purposes only; not user for auth since we have cookies
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +76,10 @@ export function AssistantApp() {
   }
 
   async function submitRequest() {
+    if (isGenerating) return; //prevent multiple simultaneous submissions
+
     setError(null);
+    setIsGenerating(true);
 
     const payload: GenerateRequest = {
       profile,
@@ -85,36 +89,45 @@ export function AssistantApp() {
       history,
     };
 
-    const res = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    //if (!res.ok) return;
+      //if (!res.ok) return;
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("Generate failed:", res.status, text);
-      alert(`Generate failed (${res.status}). Check console.`);
-      return;
-    }
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Generate failed:", res.status, text);
+        alert(`Generate failed (${res.status}). Check console.`);
+        return;
+      }
 
-    const data = (await res.json()) as {
-      prompt: string;
-      response: StructuredResponse;
-      sessionId: string;
-      userId: string;
-    };
+      const data = (await res.json()) as {
+        prompt: string;
+        response: StructuredResponse;
+        sessionId: string;
+        userId: string;
+      };
 
-    setLatestPrompt(data.prompt);
-    setOutput(data.response);
-    setSessionId(data.sessionId);
-    setUserId(data.userId);
+      setLatestPrompt(data.prompt);
+      setOutput(data.response);
+      setSessionId(data.sessionId);
+      setUserId(data.userId);
 
-    if (refinement.trim()) {
-      setHistory((prev) => [...prev, refinement.trim()]);
-      setRefinement("");
+      if (refinement.trim()) {
+        setHistory((prev) => [...prev, refinement.trim()]);
+        setRefinement("");
+      }
+    } catch (e) {
+      setError(
+        "Network error while generating. Try again. error: " +
+          (e as Error).message,
+      );
+    } finally {
+      setIsGenerating(false);
     }
   }
 
@@ -246,7 +259,11 @@ export function AssistantApp() {
                 onClick={submitRequest}
                 className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
               >
-                Generate / Regenerate
+                {isGenerating ? (
+                  <Spinner label="Generating..." />
+                ) : (
+                  "Generate / Regenerate"
+                )}
               </button>
 
               <button
@@ -261,7 +278,12 @@ export function AssistantApp() {
 
             {(userId || sessionId) && (
               <p className="mt-2 text-xs text-slate-500">
-                userId: {userId} {sessionId ? `| sessionId: ${sessionId}` : ""}
+                userId: {userId ?? (isGenerating ? "…" : "")}{" "}
+                {isGenerating
+                  ? "| sessionId: (pending...)"
+                  : sessionId
+                    ? `| sessionId: ${sessionId}`
+                    : ""}
               </p>
             )}
           </div>
@@ -270,8 +292,17 @@ export function AssistantApp() {
 
       <section className="mt-6 rounded-xl bg-white p-4 shadow">
         <h2 className="font-semibold">3) Structured Output</h2>
+
+        {isGenerating && (
+          <div className="mt-2 text-sm text-slate-600">
+            <Spinner label="Waiting for AI response..." />
+          </div>
+        )}
+
         {!output ? (
-          <p className="mt-2 text-sm text-slate-500">No report yet.</p>
+          <p className="mt-2 text-sm text-slate-500">
+            {isGenerating ? "Generating report..." : "No report yet."}
+          </p>
         ) : (
           <div className="mt-3 space-y-3 text-sm">
             <ReportBlock title="Summary" lines={[output.summary]} />
@@ -292,9 +323,15 @@ export function AssistantApp() {
                 View assembled prompt
               </summary>
 
-              <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
-                {latestPrompt}
-              </pre>
+              {isGenerating && !latestPrompt ? (
+                <div className="mt-2 rounded bg-slate-100 p-3 text-xs text-slate-700">
+                  <Spinner label="Assembling prompt..." />
+                </div>
+              ) : (
+                <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
+                  {latestPrompt || "(no prompt yet)"}
+                </pre>
+              )}
             </details>
           </div>
         )}
@@ -310,8 +347,9 @@ export function AssistantApp() {
         </p>
         <div className="mt-2 flex gap-2 text-sm">
           <button
+            disabled={isGenerating}
             onClick={() => submitFeedback("up")}
-            className="rounded border px-3 py-1"
+            className="rounded border px-3 py-1 disabled:opacity-50"
           >
             👍 Useful
           </button>
@@ -324,6 +362,34 @@ export function AssistantApp() {
         </div>
       </section>
     </main>
+  );
+}
+
+function Spinner({ label }: { label?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <svg
+        className="h-4 w-4 animate-spin"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="4"
+        />
+        <path
+          className="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"
+        />
+      </svg>
+      {label ? <span>{label}</span> : null}
+    </span>
   );
 }
 
