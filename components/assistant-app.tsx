@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AnalyticsSummary,
   GenerateRequest,
@@ -34,11 +34,15 @@ export function AssistantApp() {
   const [output, setOutput] = useState<StructuredResponse | null>(null);
   const [latestPrompt, setLatestPrompt] = useState("");
   const [savedReports, setSavedReports] = useState<StructuredResponse[]>([]);
-  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [citationView, setCitationView] = useState(true);
+  //const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+  // const [sessionId, setSessionId] = useState<string | null>(null);
+  // const [citationView, setCitationView] = useState(true);
 
   const canSubmit = useMemo(() => task.trim().length > 0, [task]);
+
+  // useEffect(() => {
+  //   void fetch("api/auth/me")
+  // })
 
   async function submitRequest() {
     const payload: GenerateRequest = {
