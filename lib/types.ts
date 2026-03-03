@@ -32,3 +32,35 @@ export interface StructuredResponse {
   risks: string[];
   citations?: string[];
 }
+
+export interface StoredUser {
+  id: string;
+  createdAt: string;
+}
+
+export interface StoredSessionOutput {
+  id: string;
+  userId: string;
+  task: string;
+  refinement?: string;
+  report: StructuredResponse;
+  rating?: "up" | "down";
+  feedback?: string;
+  createdAt: string;
+}
+
+export interface KnowledgeDocument {
+  id: string;
+  userId: string;
+  source: string;
+  content: string;
+  embedding?: number[];
+  createdAt: string;
+}
+
+export interface AnalyticsSummary {
+  totalGenerations: number;
+  positiveRatings: number;
+  negativeRatings: number;
+  citationUsageRate: number;
+}
