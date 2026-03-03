@@ -40,9 +40,24 @@ export function AssistantApp() {
 
   const canSubmit = useMemo(() => task.trim().length > 0, [task]);
 
-  // useEffect(() => {
-  //   void fetch("api/auth/me")
-  // })
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("/api/profile");
+      if (!res.ok) return;
+      const data = (await res.json()) as { profile: UserProfile | null };
+      if (data.profile) setProfile(data.profile);
+    })();
+  }, []);
+
+  async function submitFeedback(rating: "up" | "down") {
+    if (!sessionId) return;
+
+    await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, rating, feedback: "" }),
+    });
+  }
 
   async function submitRequest() {
     const payload: GenerateRequest = {
@@ -58,7 +73,14 @@ export function AssistantApp() {
       body: JSON.stringify(payload),
     });
 
-    if (!res.ok) return;
+    //if (!res.ok) return;
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Generate failed:", res.status, text);
+      alert(`Generate failed (${res.status}). Check console.`);
+      return;
+    }
 
     const data = (await res.json()) as {
       prompt: string;
@@ -248,8 +270,18 @@ export function AssistantApp() {
           Saved revisions: {savedReports.length}
         </p>
         <div className="mt-2 flex gap-2 text-sm">
-          <button className="rounded border px-3 py-1">👍 Useful</button>
-          <button className="rounded border px-3 py-1">👎 Needs work</button>
+          <button
+            onClick={() => submitFeedback("up")}
+            className="rounded border px-3 py-1"
+          >
+            👍 Useful
+          </button>
+          <button
+            onClick={() => submitFeedback("down")}
+            className="rounded border px-3 py-1"
+          >
+            👎 Needs work
+          </button>
         </div>
       </section>
     </main>
