@@ -146,11 +146,21 @@ const structuredSchema = {
       risks: { type: "array", items: { type: "string" } },
       citations: { type: "array", items: { type: "string" } },
     },
-    required: ["summary", "assumptions", "recommendation", "steps", "risks"],
+    required: [
+      "summary",
+      "assumptions",
+      "recommendation",
+      "steps",
+      "risks",
+      "citations",
+    ],
   },
 } as const;
 
-function fallbackResponse(input: GenerateRequest): StructuredResponse {
+function fallbackResponse(
+  input: GenerateRequest,
+  ragSources: string[] = [],
+): StructuredResponse {
   return {
     summary: `Prepared a ${input.options.reportType} response tailored`,
     assumptions: [
@@ -163,19 +173,34 @@ function fallbackResponse(input: GenerateRequest): StructuredResponse {
       "Confirm object and audience.",
       "Draft response.",
       "Review for clarity.",
-      "Iteratie with follow-up.",
+      "Iterate with follow-up.",
     ],
     risks: ["Missing OPENAI_API_KEY: returned fallback response."],
+    citations: ragSources,
   };
 }
+
+// export async function generateStructuredResponse(
+//   userId: string,
+//   input: GenerateRequest,
+// ): Promise<{ prompt: string; response: StructuredResponse }> {
+//   const rag = input.options.citeSources
+//     ? await retrieveContext(userId, `${input.task}\n${input.refinement || ""}`)
+//     : [];
+//   const prompt = `${buildPrompt(input)}\n\nRetrieved Context:\n${
+//     rag.length
+//       ? rag.map((r, i) => `[${i + 1}] ${r.source}: ${r.text}`).join("\n")
+//       : "(none)"
+//   }`;
 
 export async function generateStructuredResponse(
   userId: string,
   input: GenerateRequest,
-): Promise<{ prompt: string; response: StructuredResponse }> {
+) {
   const rag = input.options.citeSources
     ? await retrieveContext(userId, `${input.task}\n${input.refinement || ""}`)
     : [];
+
   const prompt = `${buildPrompt(input)}\n\nRetrieved Context:\n${
     rag.length
       ? rag.map((r, i) => `[${i + 1}] ${r.source}: ${r.text}`).join("\n")
@@ -183,8 +208,10 @@ export async function generateStructuredResponse(
   }`;
 
   if (!process.env.OPENAI_API_KEY) {
-    const response = fallbackResponse(input);
-    response.citations = rag.map((r) => r.source);
+    const response = fallbackResponse(
+      input,
+      rag.map((r) => r.source),
+    );
     return { prompt, response };
   }
 
@@ -211,6 +238,9 @@ export async function generateStructuredResponse(
 
   const raw = completion.output_text || "{}";
   const response = JSON.parse(raw) as StructuredResponse;
+
+  response.citations = response.citations || [];
+
   if (input.options.citeSources) {
     response.citations = rag.map((r, idx) => `[${idx + 1}] ${r.source}`);
   }

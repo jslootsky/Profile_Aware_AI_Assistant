@@ -42,3 +42,7 @@ uploads/
 
 # misc
 *.pem
+
+#data
+data/store.json
+data/
