@@ -1,3 +1,136 @@
+/**
+ * =============================================================================
+ * Generate API Route (app/api/generate/route.ts)
+ * =============================================================================
+ *
+ * Purpose:
+ * --------
+ * This file defines the POST endpoint responsible for:
+ *
+ *   1) Validating an incoming AI task request
+ *   2) Resolving or creating a user identity
+ *   3) Persisting the user’s profile
+ *   4) Calling the LLM orchestration layer
+ *   5) Saving the generated session output
+ *   6) Returning structured results to the frontend
+ *   7) Ensuring the user ID is stored in a browser cookie
+ *
+ * This is the main “orchestration layer” that connects:
+ *
+ *   Frontend UI
+ *        ↓
+ *   User identity (auth.ts)
+ *        ↓
+ *   Persistent storage (store.ts)
+ *        ↓
+ *   LLM generation (llm.ts)
+ *
+ * ---------------------------------------------------------------------------
+ * Dependencies:
+ * ---------------------------------------------------------------------------
+ * - crypto
+ *     → Used to generate a unique sessionId (crypto.randomUUID)
+ *
+ * - getAuthedUser / setAuthedCookie (lib/auth.ts)
+ *     → Resolves user identity from cookie/header
+ *     → Persists user ID into a browser cookie
+ *
+ * - saveProfile / saveSession (lib/store.ts)
+ *     → File-based JSON persistence
+ *
+ * - generateStructuredResponse (lib/llm.ts)
+ *     → Handles prompt building, RAG (if enabled), and OpenAI call
+ *
+ * - NextRequest / NextResponse (next/server)
+ *     → Next.js Route Handler primitives
+ *
+ * - GenerateRequest (lib/types.ts)
+ *     → Defines expected shape of the incoming JSON body
+ *
+ * ---------------------------------------------------------------------------
+ * Request Contract:
+ * ---------------------------------------------------------------------------
+ * Expects a JSON body matching:
+ *
+ *   GenerateRequest {
+ *     profile: UserProfile
+ *     task: string
+ *     refinement?: string
+ *     options?: {...}
+ *   }
+ *
+ * If task is missing or empty → returns HTTP 400
+ *
+ * ---------------------------------------------------------------------------
+ * Processing Flow:
+ * ---------------------------------------------------------------------------
+ *
+ * 1) Parse JSON body
+ *    const payload = await request.json()
+ *
+ * 2) Validate required field (task)
+ *    If missing → return 400 error
+ *
+ * 3) Resolve user identity
+ *    const user = await getAuthedUser(request)
+ *    → either finds an existing user (via cookie)
+ *    → or creates a new one
+ *
+ * 4) Persist profile
+ *    saveProfile(user.id, payload.profile)
+ *
+ * 5) Generate AI response
+ *    generateStructuredResponse(user.id, payload)
+ *
+ * 6) Create and store session record
+ *    - Generate sessionId
+ *    - Save full session object to store.json
+ *
+ * 7) Return response to frontend
+ *    - Includes:
+ *        prompt
+ *        structured response
+ *        sessionId
+ *        userId
+ *
+ * 8) Set cookie
+ *    Ensures "paai_uid" is stored in the browser for future requests
+ *
+ * ---------------------------------------------------------------------------
+ * Output:
+ * ---------------------------------------------------------------------------
+ * Returns JSON:
+ *
+ * {
+ *   prompt: string;
+ *   response: StructuredResponse;
+ *   sessionId: string;
+ *   userId: string;
+ * }
+ *
+ * HTTP 400 if task is invalid.
+ *
+ * ---------------------------------------------------------------------------
+ * Design Notes:
+ * ---------------------------------------------------------------------------
+ * - Stateless HTTP, stateful identity via cookie
+ * - Every request:
+ *       reads store → modifies → writes store
+ * - Sessions are append-only (newest first via unshift in store.ts)
+ * - User profile is overwritten on each request (last-write-wins)
+ *
+ * Potential Improvements:
+ * - Add try/catch for LLM errors
+ * - Add request size validation
+ * - Add rate limiting
+ * - Add real authentication instead of simple cookie identity
+ *
+ * =============================================================================
+ */
+
+import crypto from "crypto";
+import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
+import { saveProfile, saveSession } from "@/lib/store";
 import { NextRequest, NextResponse } from "next/server";
 import { generateStructuredResponse } from "@/lib/llm";
 import { GenerateRequest } from "@/lib/types";
@@ -9,6 +142,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Task is required." }, { status: 400 });
   }
 
-  const result = await generateStructuredResponse(payload);
-  return NextResponse.json(result);
+  const user = await getAuthedUser(request);
+  await saveProfile(user.id, payload.profile);
+
+  const result = await generateStructuredResponse(user.id, payload);
+  const sessionId = crypto.randomUUID();
+  await saveSession({
+    id: sessionId,
+    userId: user.id,
+    task: payload.task,
+    refinement: payload.refinement,
+    report: result.response,
+    createdAt: new Date().toISOString(),
+  });
+
+  const response = NextResponse.json({ ...result, sessionId, userId: user.id });
+  setAuthedCookie(response, user.id);
+  return response;
 }
