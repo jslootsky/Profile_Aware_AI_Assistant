@@ -115,7 +115,6 @@
 
 import OpenAI from "openai";
 import { listKnowedgeDocuments } from "./store";
-import { Simulate } from "react-dom/test-utils";
 
 export interface RetrievedSnippet {
   source: string;

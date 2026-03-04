@@ -231,7 +231,7 @@ export async function listSessions(userId: string) {
 export async function updateSessionFeedback(
   sessionId: string,
   rating: "up" | "down",
-  feedback: string,
+  feedback?: string,
 ) {
   const store = await ensureStore();
   const session = store.sessions.find((s) => s.id === sessionId);
