@@ -22,7 +22,7 @@ const defaultProfile: UserProfile = {
 const defaultOptions: RequestOptions = {
   verbosity: "medium",
   reportType: "general",
-  citeSources: false,
+  citeSources: true,
 };
 
 export function AssistantApp() {
