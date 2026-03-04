@@ -231,7 +231,7 @@ export async function listSessions(userId: string) {
 export async function updateSessionFeedback(
   sessionId: string,
   rating: "up" | "down",
-  feedback: string,
+  feedback?: string,
 ) {
   const store = await ensureStore();
   const session = store.sessions.find((s) => s.id === sessionId);
@@ -259,4 +259,34 @@ export async function addKnowledgeDoc(
 export async function listKnowedgeDocuments(userId: string) {
   const store = await ensureStore();
   return store.docs.filter((d) => d.userId === userId);
+}
+
+export async function getKnowledgeDocumentById(id: string) {
+  const store = await ensureStore();
+  return store.docs.find((doc) => doc.id === id) || null;
+}
+
+export async function updateKnowledgeDoc(
+  id: string,
+  updates: Pick<KnowledgeDocument, "source" | "content" | "embedding">,
+) {
+  const store = await ensureStore();
+  const doc = store.docs.find((item) => item.id === id);
+  if (!doc) return null;
+
+  doc.source = updates.source;
+  doc.content = updates.content;
+  doc.embedding = updates.embedding;
+
+  await saveStore(store);
+  return doc;
+}
+
+export async function deleteKnowledgeDoc(id: string) {
+  const store = await ensureStore();
+  const index = store.docs.findIndex((doc) => doc.id === id);
+  if (index === -1) return false;
+  store.docs.splice(index, 1);
+  await saveStore(store);
+  return true;
 }

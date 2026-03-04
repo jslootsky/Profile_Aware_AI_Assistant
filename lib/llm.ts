@@ -127,14 +127,14 @@
  */
 
 import { buildPrompt } from "./prompt";
-import { retrieveContext } from "./rag";
-import { GenerateRequest, StructuredResponse } from "./types";
+import { retrieveContextDetailed } from "./rag";
+import { GenerateRequest, StructuredResponse, RagDebugInfo } from "./types";
 import OpenAI from "openai";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-4";
 
 const structuredSchema = {
-  name: "structured_response",
+  name: "StructuredResponse",
   schema: {
     type: "object",
     additionalProperties: false,
@@ -193,13 +193,27 @@ function fallbackResponse(
 //       : "(none)"
 //   }`;
 
+function buildRetrievalQuery(input: GenerateRequest): string {
+  return [
+    `Task: ${input.task}`,
+    `Refinement: ${input.refinement || "none"}`,
+    `Role / Industry: ${input.profile.roleIndustry || "none"}`,
+    `Goals: ${input.profile.goals || "none"}`,
+    `Constraints: ${input.profile.constraints || "none"}`,
+  ].join("\n");
+}
+
 export async function generateStructuredResponse(
   userId: string,
   input: GenerateRequest,
 ) {
-  const rag = input.options.citeSources
-    ? await retrieveContext(userId, `${input.task}\n${input.refinement || ""}`)
-    : [];
+  const retrievalQuery = buildRetrievalQuery(input);
+
+  const retrieval = input.options.citeSources
+    ? await retrieveContextDetailed(userId, retrievalQuery)
+    : { snippets: [], reason: "ok" as const };
+
+  const rag = retrieval.snippets;
 
   const prompt = `${buildPrompt(input)}\n\nRetrieved Context:\n${
     rag.length
@@ -207,12 +221,20 @@ export async function generateStructuredResponse(
       : "(none)"
   }`;
 
+  const debug: RagDebugInfo = {
+    enabled: Boolean(input.options.ragDebug),
+    retrievalRan: input.options.citeSources,
+    reason: input.options.citeSources ? retrieval.reason : "citations-disabled",
+    query: retrievalQuery,
+    selected: rag.map((item) => ({ source: item.source, score: item.score })),
+  };
+
   if (!process.env.OPENAI_API_KEY) {
     const response = fallbackResponse(
       input,
       rag.map((r) => r.source),
     );
-    return { prompt, response };
+    return { prompt, response, debug };
   }
 
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -245,7 +267,7 @@ export async function generateStructuredResponse(
     response.citations = rag.map((r, idx) => `[${idx + 1}] ${r.source}`);
   }
 
-  return { prompt, response };
+  return { prompt, response, debug };
 }
 
 /* deprecated heuristic generator for testing without API access

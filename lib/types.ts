@@ -14,6 +14,20 @@ export interface RequestOptions {
   verbosity: "low" | "medium" | "high";
   reportType: "general" | "comparison" | "action-plan";
   citeSources: boolean;
+  ragDebug?: boolean;
+}
+
+export interface RagDebugInfo {
+  enabled: boolean;
+  retrievalRan: boolean;
+  reason:
+    | "citations-disabled"
+    | "missing-openai-key"
+    | "no-docs"
+    | "no-embeddings"
+    | "ok";
+  query: string;
+  selected: Array<{ source: string; score: number }>;
 }
 
 export interface GenerateRequest {

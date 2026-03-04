@@ -129,34 +129,84 @@
  */
 
 import crypto from "crypto";
+import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
 import { saveProfile, saveSession } from "@/lib/store";
-import { NextRequest, NextResponse } from "next/server";
 import { generateStructuredResponse } from "@/lib/llm";
 import { GenerateRequest } from "@/lib/types";
 
+const DEFAULT_PROFILE: GenerateRequest["profile"] = {
+  roleIndustry: "",
+  goals: "",
+  tone: "Professional and concise",
+  constraints: "",
+  preferredFormat: "report",
+  dos: "",
+  donts: "",
+};
+
+const DEFAULT_OPTIONS: GenerateRequest["options"] = {
+  verbosity: "medium",
+  reportType: "general",
+  citeSources: false,
+  ragDebug: false,
+};
+
 export async function POST(request: NextRequest) {
-  const payload = (await request.json()) as GenerateRequest;
+  try {
+    // Parse body safely
+    const incoming = (await request.json()) as Partial<GenerateRequest>;
 
-  if (!payload?.task?.trim()) {
-    return NextResponse.json({ error: "Task is required." }, { status: 400 });
+    // Validate required task
+    const task = incoming?.task?.trim();
+    if (!task) {
+      return NextResponse.json({ error: "Task is required." }, { status: 400 });
+    }
+
+    // Normalize payload so downstream code never sees undefined/null shapes
+    const payload: GenerateRequest = {
+      profile: incoming.profile ?? DEFAULT_PROFILE,
+      task,
+      refinement: incoming.refinement ?? "",
+      options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}) },
+      history: Array.isArray(incoming.history) ? incoming.history : [],
+    };
+
+    // Resolve user identity (cookie/header) and persist profile
+    const user = await getAuthedUser(request);
+    await saveProfile(user.id, payload.profile);
+
+    // Generate response (structured JSON or fallback)
+    const result = await generateStructuredResponse(user.id, payload);
+
+    // Persist session
+    const sessionId = crypto.randomUUID();
+    await saveSession({
+      id: sessionId,
+      userId: user.id,
+      task: payload.task,
+      refinement: payload.refinement,
+      // NOTE: Ensure StoredSessionOutput.report type matches result.response.
+      // If report should be a string, store JSON.stringify(result.response) instead.
+      report: result.response,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Return response and set auth cookie for subsequent calls
+    const response = NextResponse.json({
+      prompt: result.prompt,
+      response: result.response,
+      debug: payload.options.ragDebug ? result.debug : undefined,
+      sessionId,
+      userId: user.id,
+    });
+    setAuthedCookie(response, user.id);
+    return response;
+  } catch (error) {
+    console.error("/api/generate failed", error);
+    return NextResponse.json(
+      { error: "Failed to generate response." },
+      { status: 500 },
+    );
   }
-
-  const user = await getAuthedUser(request);
-  await saveProfile(user.id, payload.profile);
-
-  const result = await generateStructuredResponse(user.id, payload);
-  const sessionId = crypto.randomUUID();
-  await saveSession({
-    id: sessionId,
-    userId: user.id,
-    task: payload.task,
-    refinement: payload.refinement,
-    report: result.response,
-    createdAt: new Date().toISOString(),
-  });
-
-  const response = NextResponse.json({ ...result, sessionId, userId: user.id });
-  setAuthedCookie(response, user.id);
-  return response;
 }
