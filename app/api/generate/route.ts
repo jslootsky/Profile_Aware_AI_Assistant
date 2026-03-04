@@ -149,6 +149,7 @@ const DEFAULT_OPTIONS: GenerateRequest["options"] = {
   verbosity: "medium",
   reportType: "general",
   citeSources: false,
+  ragDebug: false,
 };
 
 export async function POST(request: NextRequest) {
