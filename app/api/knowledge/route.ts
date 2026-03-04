@@ -114,8 +114,24 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
-import { addKnowledgeDoc } from "@/lib/store";
+import { addKnowledgeDoc, listKnowedgeDocuments } from "@/lib/store";
 import { embedForStorage } from "@/lib/rag";
+
+export async function GET(request: NextRequest) {
+  const user = await getAuthedUser(request);
+  const docs = await listKnowedgeDocuments(user.id);
+  const response = NextResponse.json({
+    docs: docs.map((doc) => ({
+      id: doc.id,
+      source: doc.source,
+      content: doc.content,
+      createdAt: doc.createdAt,
+      hasEmbedding: Boolean(doc.embedding?.length),
+    })),
+  });
+  setAuthedCookie(response, user.id);
+  return response;
+}
 
 export async function POST(request: NextRequest) {
   const user = await getAuthedUser(request);
@@ -123,19 +139,25 @@ export async function POST(request: NextRequest) {
     source: string;
     content: string;
   };
-  if (!source || !content)
+
+  if (!source?.trim() || !content?.trim()) {
     return NextResponse.json(
       { error: "Source and content required." },
       { status: 400 },
     );
+  }
   const embedding = await embedForStorage(content);
   const doc = await addKnowledgeDoc({
     userId: user.id,
-    source,
-    content,
+    source: source.trim(),
+    content: content.trim(),
     embedding,
   });
-  const response = NextResponse.json({ id: doc.id });
+  const response = NextResponse.json({
+    id: doc.id,
+    source: doc.source,
+    hasEmbedding: Boolean(doc.embedding?.length),
+  });
   setAuthedCookie(response, user.id);
   return response;
 }

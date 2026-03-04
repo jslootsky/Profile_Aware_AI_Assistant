@@ -17,10 +17,10 @@ export interface RequestOptions {
   ragDebug?: boolean;
 }
 
-export interface ragDebugInfo {
+export interface RagDebugInfo {
   enabled: boolean;
   retrievalRan: boolean;
-  reasons:
+  reason:
     | "citations-disabled"
     | "missing-openai-key"
     | "no-docs"

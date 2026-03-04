@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       profile: incoming.profile ?? DEFAULT_PROFILE,
       task,
       refinement: incoming.refinement ?? "",
-      options: incoming.options ?? DEFAULT_OPTIONS,
+      options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}) },
       history: Array.isArray(incoming.history) ? incoming.history : [],
     };
 
@@ -194,7 +194,9 @@ export async function POST(request: NextRequest) {
 
     // Return response and set auth cookie for subsequent calls
     const response = NextResponse.json({
-      ...result,
+      prompt: result.prompt,
+      response: result.response,
+      debug: payload.options.ragDebug ? result.debug : undefined,
       sessionId,
       userId: user.id,
     });

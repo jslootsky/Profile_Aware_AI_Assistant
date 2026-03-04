@@ -122,13 +122,18 @@ export interface RetrievedSnippet {
   score: number;
 }
 
+export interface RetrievalResult {
+  snippets: RetrievedSnippet[];
+  reason: "missing-openai-key" | "no-docs" | "no-embeddings" | "ok";
+}
+
 const EMBEDDING_MODEL =
   process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
 
 function cosineSimilarity(a: number[], b: number[]): number {
   const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
-  const normA = Math.sqrt(a.reduce((sum, val, i) => sum + val * val, 0));
-  const normB = Math.sqrt(b.reduce((sum, val, i) => sum + val * val, 0));
+  const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+  const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
   return normA && normB ? dot / (normA * normB) : 0;
 }
 
@@ -140,20 +145,27 @@ async function getEmbedding(client: OpenAI, input: string): Promise<number[]> {
   return result.data[0].embedding;
 }
 
-export async function retrieveContext(
+export async function retrieveContextDetailed(
   userId: string,
   query: string,
   topK = 3,
-): Promise<RetrievedSnippet[]> {
-  if (!process.env.OPENAI_API_KEY) return [];
+): Promise<RetrievalResult> {
+  if (!process.env.OPENAI_API_KEY) {
+    return { snippets: [], reason: "missing-openai-key" };
+  }
   const docs = await listKnowedgeDocuments(userId);
+
+  if (!docs.length) {
+    return { snippets: [], reason: "no-docs" };
+  }
+
   const embeddedDocs = docs.filter((doc) => doc.embedding?.length);
-  if (!embeddedDocs.length) return [];
+  if (!embeddedDocs.length) return { snippets: [], reason: "no-embeddings" };
 
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const queryEmbedding = await getEmbedding(client, query);
 
-  return embeddedDocs
+  const snippets = embeddedDocs
     .map((doc) => ({
       source: doc.source,
       text: doc.content,
@@ -161,6 +173,16 @@ export async function retrieveContext(
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
+  return { snippets, reason: "ok" };
+}
+
+export async function retrieveContext(
+  userId: string,
+  query: string,
+  topK = 3,
+): Promise<RetrievedSnippet[]> {
+  const result = await retrieveContextDetailed(userId, query, topK);
+  return result.snippets;
 }
 
 export async function embedForStorage(

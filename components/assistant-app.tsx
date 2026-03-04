@@ -2,12 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AnalyticsSummary,
   GenerateRequest,
+  RagDebugInfo,
   RequestOptions,
   StructuredResponse,
   UserProfile,
 } from "@/lib/types";
+
+interface KnowledgeDocView {
+  id: string;
+  source: string;
+  content: string;
+  createdAt: string;
+  hasEmbedding: boolean;
+}
 
 const defaultProfile: UserProfile = {
   roleIndustry: "",
@@ -23,6 +31,7 @@ const defaultOptions: RequestOptions = {
   verbosity: "medium",
   reportType: "general",
   citeSources: true,
+  ragDebug: false,
 };
 
 export function AssistantApp() {
@@ -39,17 +48,36 @@ export function AssistantApp() {
   // const [citationView, setCitationView] = useState(true);
   const [userId, setUserId] = useState<string | null>(null); //for debugging / display purposes only; not user for auth since we have cookies
   const [isGenerating, setIsGenerating] = useState(false);
+  const [ragDebug, setRagDebug] = useState<RagDebugInfo | null>(null);
+
+  const [knowledgeSource, setKnowledgeSource] = useState("");
+  const [knowledgeContent, setKnowledgeContent] = useState("");
+  const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocView[]>([]);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [knowledgeStatus, setKnowledgeStatus] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => task.trim().length > 0, [task]);
 
+  async function loadKnowledgeDocs() {
+    const res = await fetch("/api/knowledge");
+    if (!res.ok) return;
+    const data = (await res.json()) as { docs: KnowledgeDocView[] };
+    setKnowledgeDocs(data.docs);
+  }
+
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/profile");
-        if (!res.ok) return;
-        const data = (await res.json()) as { profile: UserProfile | null };
+        const [profileRes] = await Promise.all([
+          fetch("/api/profile"),
+          loadKnowledgeDocs(),
+        ]);
+        if (!profileRes.ok) return;
+        const data = (await profileRes.json()) as {
+          profile: UserProfile | null;
+        };
         if (data.profile) setProfile(data.profile);
       } catch {}
     })();
@@ -100,14 +128,14 @@ export function AssistantApp() {
 
       if (!res.ok) {
         const text = await res.text();
-        console.error("Generate failed:", res.status, text);
-        alert(`Generate failed (${res.status}). Check console.`);
+        setError(`Generate failed (${res.status}): ${text}`);
         return;
       }
 
       const data = (await res.json()) as {
         prompt: string;
         response: StructuredResponse;
+        debug?: RagDebugInfo;
         sessionId: string;
         userId: string;
       };
@@ -116,6 +144,7 @@ export function AssistantApp() {
       setOutput(data.response);
       setSessionId(data.sessionId);
       setUserId(data.userId);
+      setRagDebug(data.debug || null);
 
       if (refinement.trim()) {
         setHistory((prev) => [...prev, refinement.trim()]);
@@ -131,13 +160,66 @@ export function AssistantApp() {
     }
   }
 
+  async function upsertKnowledgeDoc() {
+    setKnowledgeStatus(null);
+    if (!knowledgeSource.trim() || !knowledgeContent.trim()) {
+      setKnowledgeStatus("Source and content are required.");
+      return;
+    }
+
+    const url = editingDocId
+      ? `/api/knowledge/${editingDocId}`
+      : "/api/knowledge";
+    const method = editingDocId ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: knowledgeSource,
+        content: knowledgeContent,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      setKnowledgeStatus(`Save failed (${res.status}): ${text}`);
+      return;
+    }
+
+    const data = (await res.json()) as { source: string };
+    setKnowledgeStatus(`Saved knowledge source: ${data.source}.`);
+    setKnowledgeSource("");
+    setKnowledgeContent("");
+    setEditingDocId(null);
+    await loadKnowledgeDocs();
+  }
+
+  async function removeKnowledgeDoc(id: string) {
+    const res = await fetch(`/api/knowledge/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const text = await res.text();
+      setKnowledgeStatus(`Delete failed (${res.status}): ${text}`);
+      return;
+    }
+    setKnowledgeStatus("Knowledge source deleted.");
+    if (editingDocId === id) {
+      setEditingDocId(null);
+      setKnowledgeSource("");
+      setKnowledgeContent("");
+    }
+    await loadKnowledgeDocs();
+  }
+
+  function beginEditDoc(doc: KnowledgeDocView) {
+    setEditingDocId(doc.id);
+    setKnowledgeSource(doc.source);
+    setKnowledgeContent(doc.content);
+    setKnowledgeStatus(`Editing ${doc.source}`);
+  }
+
   return (
     <main className="mx-auto max-w-6xl p-6">
       <h1 className="text-2xl font-bold">Profile-Aware AI Assistant MVP</h1>
-      <p className="mt-1 text-sm text-slate-600">
-        Capture profile → submit request → generate structured report → refine
-        iteratively.
-      </p>
 
       {error && (
         <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -252,6 +334,17 @@ export function AssistantApp() {
             </label>
           </div>
 
+          <label className="mt-3 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={Boolean(options.ragDebug)}
+              onChange={(e) =>
+                setOptions({ ...options, ragDebug: e.target.checked })
+              }
+            />
+            Include RAG debug metadata
+          </label>
+
           <div className="mt-4">
             <div className="flex gap-2">
               <button
@@ -291,13 +384,94 @@ export function AssistantApp() {
       </section>
 
       <section className="mt-6 rounded-xl bg-white p-4 shadow">
-        <h2 className="font-semibold">3) Structured Output</h2>
+        <h2 className="font-semibold">3) Knowledge Management (RAG)</h2>
+        <p className="text-sm text-slate-600">
+          Add or update user-scoped knowledge sources used when citations are
+          enabled.
+        </p>
 
-        {isGenerating && (
-          <div className="mt-2 text-sm text-slate-600">
-            <Spinner label="Waiting for AI response..." />
-          </div>
+        <FormField
+          label="Source name"
+          value={knowledgeSource}
+          onChange={setKnowledgeSource}
+        />
+        <label className="mt-3 block text-sm font-medium">
+          Document content
+        </label>
+        <textarea
+          className="mt-1 h-28 w-full rounded border p-2"
+          value={knowledgeContent}
+          onChange={(e) => setKnowledgeContent(e.target.value)}
+        />
+
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={upsertKnowledgeDoc}
+            className="rounded bg-slate-900 px-4 py-2 text-white"
+          >
+            {editingDocId ? "Update document" : "Add document"}
+          </button>
+          {editingDocId && (
+            <button
+              onClick={() => {
+                setEditingDocId(null);
+                setKnowledgeSource("");
+                setKnowledgeContent("");
+                setKnowledgeStatus("Edit canceled.");
+              }}
+              className="rounded border border-slate-300 px-4 py-2"
+            >
+              Cancel edit
+            </button>
+          )}
+        </div>
+
+        {knowledgeStatus && (
+          <p className="mt-2 text-sm text-slate-600">{knowledgeStatus}</p>
         )}
+
+        <div className="mt-4 space-y-2">
+          {knowledgeDocs.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No knowledge sources added yet.
+            </p>
+          ) : (
+            knowledgeDocs.map((doc) => (
+              <div
+                key={doc.id}
+                className="rounded border border-slate-200 p-3 text-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{doc.source}</p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(doc.createdAt).toLocaleString()} · embedding:{" "}
+                      {doc.hasEmbedding ? "yes" : "no"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => beginEditDoc(doc)}
+                      className="rounded border px-3 py-1"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => removeKnowledgeDoc(doc.id)}
+                      className="rounded border px-3 py-1"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-xl bg-white p-4 shadow">
+        <h2 className="font-semibold">4) Structured Output</h2>
 
         {!output ? (
           <p className="mt-2 text-sm text-slate-500">
@@ -322,17 +496,21 @@ export function AssistantApp() {
               <summary className="cursor-pointer font-medium">
                 View assembled prompt
               </summary>
-
-              {isGenerating && !latestPrompt ? (
-                <div className="mt-2 rounded bg-slate-100 p-3 text-xs text-slate-700">
-                  <Spinner label="Assembling prompt..." />
-                </div>
-              ) : (
-                <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
-                  {latestPrompt || "(no prompt yet)"}
-                </pre>
-              )}
+              <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
+                {latestPrompt || "(no prompt yet)"}
+              </pre>
             </details>
+
+            {ragDebug?.enabled && (
+              <details>
+                <summary className="cursor-pointer font-medium">
+                  View RAG debug metadata
+                </summary>
+                <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
+                  {JSON.stringify(ragDebug, null, 2)}
+                </pre>
+              </details>
+            )}
           </div>
         )}
       </section>
