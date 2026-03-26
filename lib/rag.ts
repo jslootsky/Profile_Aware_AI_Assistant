@@ -116,6 +116,8 @@
 import {
   searchVectorStoreWithScore,
   addDocumentToVectorStore,
+  removeDocumentFromVectorStore,
+  isDocumentIndexed,
 } from "./vector-store";
 
 export interface RetrievedSnippet {
@@ -163,7 +165,16 @@ export async function embedForStorage(
   userId: string,
   source: string,
   content: string,
+  documentId: string, // now required
 ): Promise<void> {
   if (!process.env.OPENAI_API_KEY) return;
-  await addDocumentToVectorStore(userId, source, content);
+  await addDocumentToVectorStore(userId, source, content, documentId);
+}
+
+export async function removeFromStorage(documentId: string): Promise<void> {
+  await removeDocumentFromVectorStore(documentId);
+}
+
+export async function isIndexed(documentId: string): Promise<boolean> {
+  return isDocumentIndexed(documentId);
 }

@@ -5,7 +5,7 @@ import {
   getKnowledgeDocumentById,
   updateKnowledgeDoc,
 } from "@/lib/store";
-import { embedForStorage } from "@/lib/rag";
+import { embedForStorage, removeFromStorage, isIndexed } from "@/lib/rag";
 
 export async function PUT(
   request: NextRequest,
@@ -31,19 +31,19 @@ export async function PUT(
 
   if (content !== existing.content || source !== existing.source) {
     // Re-index in the vector store
-    await embedForStorage(user.id, source, content);
+    await embedForStorage(user.id, source, content, params.id);
   }
 
   const updated = await updateKnowledgeDoc(params.id, {
     source,
     content,
-    embedding: [], // Single embedding no longer used in JSON store
+    embedding: [], 
   });
 
   const response = NextResponse.json({
     id: updated?.id,
     source: updated?.source,
-    hasEmbedding: Boolean(updated?.embedding?.length),
+    hasEmbedding: await isIndexed(params.id),
   });
   setAuthedCookie(response, user.id);
   return response;
@@ -61,6 +61,8 @@ export async function DELETE(
   }
 
   await deleteKnowledgeDoc(params.id);
+  await removeFromStorage(params.id);
+
   const response = NextResponse.json({ deleted: true });
   setAuthedCookie(response, user.id);
   return response;

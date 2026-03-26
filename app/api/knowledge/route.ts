@@ -115,20 +115,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
 import { addKnowledgeDoc, listKnowedgeDocuments } from "@/lib/store";
-import { embedForStorage } from "@/lib/rag";
+import { embedForStorage, isIndexed } from "@/lib/rag";
 
 export async function GET(request: NextRequest) {
   const user = await getAuthedUser(request);
   const docs = await listKnowedgeDocuments(user.id);
-  const response = NextResponse.json({
-    docs: docs.map((doc) => ({
+  
+  const docsWithStatus = await Promise.all(
+    docs.map(async (doc) => ({
       id: doc.id,
       source: doc.source,
       content: doc.content,
       createdAt: doc.createdAt,
-      hasEmbedding: Boolean(doc.embedding?.length),
-    })),
-  });
+      hasEmbedding: await isIndexed(doc.id),
+    }))
+  );
+
+  const response = NextResponse.json({ docs: docsWithStatus });
   setAuthedCookie(response, user.id);
   return response;
 }
@@ -146,19 +149,20 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  // The new embedForStorage handles chunking and vector storage internally
-  await embedForStorage(user.id, source.trim(), content.trim());
-  
+
   const doc = await addKnowledgeDoc({
     userId: user.id,
     source: source.trim(),
     content: content.trim(),
-    embedding: [], // We no longer store the single embedding in JSON, it's in the vector store
+    embedding: [], 
   });
+
+  await embedForStorage(user.id, source.trim(), content.trim(), doc.id);
+
   const response = NextResponse.json({
     id: doc.id,
     source: doc.source,
-    hasEmbedding: Boolean(doc.embedding?.length),
+    hasEmbedding: await isIndexed(doc.id),
   });
   setAuthedCookie(response, user.id);
   return response;
