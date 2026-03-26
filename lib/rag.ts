@@ -113,8 +113,10 @@
  * This allows the app to run without RAG enabled.
  */
 
-import OpenAI from "openai";
-import { listKnowedgeDocuments } from "./store";
+import {
+  searchVectorStoreWithScore,
+  addDocumentToVectorStore,
+} from "./vector-store";
 
 export interface RetrievedSnippet {
   source: string;
@@ -127,24 +129,6 @@ export interface RetrievalResult {
   reason: "missing-openai-key" | "no-docs" | "no-embeddings" | "ok";
 }
 
-const EMBEDDING_MODEL =
-  process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
-  const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-  const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-  return normA && normB ? dot / (normA * normB) : 0;
-}
-
-async function getEmbedding(client: OpenAI, input: string): Promise<number[]> {
-  const result = await client.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input,
-  });
-  return result.data[0].embedding;
-}
-
 export async function retrieveContextDetailed(
   userId: string,
   query: string,
@@ -153,27 +137,17 @@ export async function retrieveContextDetailed(
   if (!process.env.OPENAI_API_KEY) {
     return { snippets: [], reason: "missing-openai-key" };
   }
-  const docs = await listKnowedgeDocuments(userId);
 
-  if (!docs.length) {
+  try {
+    const snippets = await searchVectorStoreWithScore(userId, query, topK);
+    if (!snippets.length) {
+      return { snippets: [], reason: "no-docs" };
+    }
+    return { snippets, reason: "ok" };
+  } catch (error) {
+    console.error("Vector search error:", error);
     return { snippets: [], reason: "no-docs" };
   }
-
-  const embeddedDocs = docs.filter((doc) => doc.embedding?.length);
-  if (!embeddedDocs.length) return { snippets: [], reason: "no-embeddings" };
-
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const queryEmbedding = await getEmbedding(client, query);
-
-  const snippets = embeddedDocs
-    .map((doc) => ({
-      source: doc.source,
-      text: doc.content,
-      score: cosineSimilarity(queryEmbedding, doc.embedding as number[]),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK);
-  return { snippets, reason: "ok" };
 }
 
 export async function retrieveContext(
@@ -186,9 +160,10 @@ export async function retrieveContext(
 }
 
 export async function embedForStorage(
+  userId: string,
+  source: string,
   content: string,
-): Promise<number[] | undefined> {
-  if (!process.env.OPENAI_API_KEY) return undefined;
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  return getEmbedding(client, content);
+): Promise<void> {
+  if (!process.env.OPENAI_API_KEY) return;
+  await addDocumentToVectorStore(userId, source, content);
 }

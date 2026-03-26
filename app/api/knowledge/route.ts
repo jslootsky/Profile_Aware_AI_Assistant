@@ -146,12 +146,14 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const embedding = await embedForStorage(content);
+  // The new embedForStorage handles chunking and vector storage internally
+  await embedForStorage(user.id, source.trim(), content.trim());
+  
   const doc = await addKnowledgeDoc({
     userId: user.id,
     source: source.trim(),
     content: content.trim(),
-    embedding,
+    embedding: [], // We no longer store the single embedding in JSON, it's in the vector store
   });
   const response = NextResponse.json({
     id: doc.id,

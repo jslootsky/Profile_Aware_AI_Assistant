@@ -29,15 +29,15 @@ export async function PUT(
     );
   }
 
-  const embedding =
-    content === existing.content
-      ? existing.embedding
-      : await embedForStorage(content);
+  if (content !== existing.content || source !== existing.source) {
+    // Re-index in the vector store
+    await embedForStorage(user.id, source, content);
+  }
 
   const updated = await updateKnowledgeDoc(params.id, {
     source,
     content,
-    embedding,
+    embedding: [], // Single embedding no longer used in JSON store
   });
 
   const response = NextResponse.json({
