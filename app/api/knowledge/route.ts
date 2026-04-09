@@ -114,12 +114,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
-import { addKnowledgeDoc, listKnowedgeDocuments } from "@/lib/store";
+import {
+  addKnowledgeDocument,
+  listKnowledgeDocuments,
+} from "@/lib/knowledge-store";
 import { embedForStorage, isIndexed } from "@/lib/rag";
 
 export async function GET(request: NextRequest) {
   const user = await getAuthedUser(request);
-  const docs = await listKnowedgeDocuments(user.id);
+  const docs = await listKnowledgeDocuments(user.id);
   
   const docsWithStatus = await Promise.all(
     docs.map(async (doc) => ({
@@ -150,7 +153,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const doc = await addKnowledgeDoc({
+  const doc = await addKnowledgeDocument({
     userId: user.id,
     source: source.trim(),
     content: content.trim(),
