@@ -2,18 +2,18 @@ import { SurveyQuestion, WeddingProfile, WeddingPriority } from "./types";
 
 export const DEFAULT_WEDDING_PROFILE: WeddingProfile = {
   partnerNames: "",
-  totalBudget: 12000,
-  guestCount: 75,
+  totalBudget: 0,
+  guestCount: 0,
   location: "",
-  season: "flexible",
+  season: "",
   targetDate: "",
-  priorities: ["food", "guest-experience"],
-  alcoholAllowed: "maybe",
-  diyWillingness: "some",
-  style: "casual",
+  priorities: [],
+  alcoholAllowed: "",
+  diyWillingness: "",
+  style: "",
   constraints: "",
-  ceremonyType: "ceremony and reception",
-  cateringPreference: "buffet or family style",
+  ceremonyType: "",
+  cateringPreference: "",
   surveyStep: 0,
   onboardingComplete: false,
 };
@@ -33,10 +33,9 @@ export function mergeWeddingProfile(
   return {
     ...DEFAULT_WEDDING_PROFILE,
     ...(incoming || {}),
-    priorities:
-      incoming?.priorities && incoming.priorities.length
-        ? incoming.priorities
-        : DEFAULT_WEDDING_PROFILE.priorities,
+    priorities: Array.isArray(incoming?.priorities)
+      ? incoming.priorities
+      : DEFAULT_WEDDING_PROFILE.priorities,
     totalBudget: Number(incoming?.totalBudget || DEFAULT_WEDDING_PROFILE.totalBudget),
     guestCount: Number(incoming?.guestCount || DEFAULT_WEDDING_PROFILE.guestCount),
     onboardingComplete: Boolean(incoming?.onboardingComplete),

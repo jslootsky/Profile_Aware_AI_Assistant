@@ -373,12 +373,27 @@ export function WeddingPlannerApp() {
             The calculator updates live as you answer the survey.
           </p>
           <div className="mt-4 grid gap-3 text-sm">
-            <InfoRow label="Budget" value={`$${profile.totalBudget.toLocaleString()}`} />
-            <InfoRow label="Guests" value={String(profile.guestCount)} />
-            <InfoRow label="Budget / Guest" value={`$${budgetSnapshot.budgetPerGuest}`} />
+            <InfoRow
+              label="Budget"
+              value={
+                profile.totalBudget > 0
+                  ? `$${profile.totalBudget.toLocaleString()}`
+                  : "Not set"
+              }
+            />
+            <InfoRow
+              label="Guests"
+              value={profile.guestCount > 0 ? String(profile.guestCount) : "Not set"}
+            />
+            <InfoRow
+              label="Budget / Guest"
+              value={profile.totalBudget > 0 && profile.guestCount > 0
+                ? `$${budgetSnapshot.budgetPerGuest}`
+                : "Not set"}
+            />
             <InfoRow label="Location" value={profile.location || "Not set"} />
-            <InfoRow label="Season" value={profile.season} />
-            <InfoRow label="Style" value={profile.style} />
+            <InfoRow label="Season" value={profile.season || "Not set"} />
+            <InfoRow label="Style" value={profile.style || "Not set"} />
           </div>
           <div className="mt-5 rounded-2xl bg-slate-900 p-4">
             <h3 className="font-medium">Protected priorities</h3>
@@ -725,6 +740,7 @@ function SurveyInput({
         value={String(value || "")}
         onChange={(e) => onChange(e.target.value)}
       >
+        <option value="">{question.placeholder || "Select an option"}</option>
         {(question.options || []).map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -772,9 +788,21 @@ function SurveyInput({
       min={question.min}
       max={question.max}
       placeholder={question.placeholder}
-      value={question.type === "number" ? Number(value || 0) : String(value || "")}
+      value={
+        question.type === "number"
+          ? Number(value || 0) > 0
+            ? Number(value)
+            : ""
+          : String(value || "")
+      }
       onChange={(e) =>
-        onChange(question.type === "number" ? Number(e.target.value) : e.target.value)
+        onChange(
+          question.type === "number"
+            ? e.target.value === ""
+              ? 0
+              : Number(e.target.value)
+            : e.target.value,
+        )
       }
     />
   );

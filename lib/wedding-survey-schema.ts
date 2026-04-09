@@ -37,6 +37,7 @@ export const weddingSurveySchema: SurveyQuestion[] = [
     label: "Preferred season",
     type: "select",
     required: true,
+    placeholder: "Select a season",
     options: [
       { label: "Flexible", value: "flexible" },
       { label: "Spring", value: "spring" },
@@ -72,6 +73,7 @@ export const weddingSurveySchema: SurveyQuestion[] = [
     id: "alcoholAllowed",
     label: "Will you serve alcohol?",
     type: "select",
+    placeholder: "Select an option",
     options: [
       { label: "Yes", value: "yes" },
       { label: "No", value: "no" },
@@ -82,6 +84,7 @@ export const weddingSurveySchema: SurveyQuestion[] = [
     id: "diyWillingness",
     label: "How much DIY are you open to?",
     type: "select",
+    placeholder: "Select an option",
     options: [
       { label: "None", value: "none" },
       { label: "Some", value: "some" },
@@ -93,6 +96,7 @@ export const weddingSurveySchema: SurveyQuestion[] = [
     label: "Preferred style",
     type: "select",
     required: true,
+    placeholder: "Select a style",
     options: [
       { label: "Casual", value: "casual" },
       { label: "Classic", value: "classic" },

@@ -1,5 +1,12 @@
-export type WeddingSeason = "spring" | "summer" | "fall" | "winter" | "flexible";
+export type WeddingSeason =
+  | ""
+  | "spring"
+  | "summer"
+  | "fall"
+  | "winter"
+  | "flexible";
 export type WeddingStyle =
+  | ""
   | "classic"
   | "garden"
   | "modern"
@@ -7,8 +14,8 @@ export type WeddingStyle =
   | "minimal"
   | "cultural-traditional"
   | "casual";
-export type AlcoholPreference = "yes" | "no" | "maybe";
-export type DiyLevel = "none" | "some" | "high";
+export type AlcoholPreference = "" | "yes" | "no" | "maybe";
+export type DiyLevel = "" | "none" | "some" | "high";
 export type WeddingPriority =
   | "food"
   | "venue"
