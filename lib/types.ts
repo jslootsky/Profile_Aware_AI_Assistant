@@ -58,6 +58,7 @@ export interface WeddingProfile {
   constraints: string;
   ceremonyType: string;
   cateringPreference: string;
+  surveyStep: number;
   onboardingComplete: boolean;
 }
 

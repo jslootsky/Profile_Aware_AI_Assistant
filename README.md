@@ -1,65 +1,68 @@
-# Profile-Aware AI Assistant
+# Budget Wedding Planner
 
-A Next.js + TypeScript app for generating structured, profile-aware AI reports with optional user-scoped RAG.
+A Next.js + TypeScript wedding planning app focused on practical affordability, explicit tradeoffs, and constraint-aware recommendations.
 
-## Current state
+## What the app does
 
-- Profile capture and persistence for role, goals, tone, constraints, format, and do/don't instructions.
-- Structured report generation with sections for summary, assumptions, recommendation, steps, risks, and optional citations.
-- Iterative refinement flow with saved revision history in the UI.
-- User-scoped knowledge management for adding, editing, listing, and deleting RAG documents.
-- Optional RAG debug output showing retrieval reason, retrieval query, and selected sources.
-- Lightweight cookie-based identity.
-- Feedback endpoint for thumbs up/down on generated sessions.
+- Starts with a survey-first onboarding flow before planning begins.
+- Uses a schema-driven wedding survey so questions can be edited in one place.
+- Persists a wedding profile with budget, guest count, location, season/date, priorities, alcohol preference, DIY willingness, style, and constraints.
+- Generates structured wedding plans that stay grounded in that saved profile across turns.
+- Supports iterative follow-ups like making the plan cheaper, increasing guest count, or protecting a priority category.
+- Provides deterministic budget math before the model responds.
+- Uses lightweight vendor and venue retrieval from a local structured knowledge base plus optional user-added RAG notes.
+
+## Current planner flow
+
+1. Complete the wedding survey one question at a time.
+2. Save survey progress or finish onboarding.
+3. Generate a wedding plan using the saved profile as persistent context.
+4. Refine the plan with follow-up requests while preserving the same wedding context.
+5. Add local vendor or venue notes to improve retrieval grounding.
+
+## Structured output
+
+Planner responses are rendered in these sections:
+
+- `summary`
+- `budgetBreakdown`
+- `vendorSuggestions`
+- `tradeoffs`
+- `savingsOptions`
+- `nextSteps`
 
 ## Storage model
 
-- Profiles, generated sessions, and feedback are currently stored locally in `data/store.json`.
-- Local fallback chunk embeddings are stored in `data/vector-store.json`.
-- Knowledge documents and vector search can optionally be moved to Supabase.
-- When Supabase is configured, document records are stored in `knowledge_documents` and chunk vectors are stored in `knowledge_chunks`.
-- If Supabase is not configured, knowledge storage falls back to the local JSON files.
+- Knowledge documents and embeddings can use Supabase when configured, with local JSON fallback.
+- Wedding profiles and planner sessions can also use Supabase when configured, with local JSON fallback.
+- Local fallback storage still lives in:
+  - `data/store.json`
+  - `data/vector-store.json`
 
-## Tech stack
+## Key modules
 
-- Next.js 14
-- React 18
-- TypeScript
-- Tailwind CSS
-- OpenAI SDK
-- LangChain JS for chunking and Supabase vector-store integration
-- Supabase Postgres + pgvector for optional production RAG storage
-
-## Project structure
-
-- `app/page.tsx`: main app entry
-- `components/assistant-app.tsx`: primary UI for profile input, generation, knowledge management, and debug views
-- `app/api/generate/route.ts`: report generation endpoint
-- `app/api/profile/route.ts`: profile fetch/save endpoint
-- `app/api/knowledge/route.ts`: knowledge list/create endpoint
-- `app/api/knowledge/[id]/route.ts`: knowledge update/delete endpoint
-- `app/api/feedback/route.ts`: session feedback endpoint
-- `lib/llm.ts`: prompt orchestration and model call
-- `lib/rag.ts`: retrieval orchestration used by generation
-- `lib/vector-store.ts`: vector store abstraction with Supabase primary path and local fallback
-- `lib/langchain.ts`: chunk splitting and embedding configuration
-- `lib/knowledge-store.ts`: knowledge document CRUD with Supabase primary path and local fallback
-- `lib/store.ts`: local JSON persistence for users, profiles, sessions, and fallback docs
-- `lib/supabase.ts`: Supabase admin client helper
-- `supabase/schema.sql`: pasteable SQL schema for Supabase setup
-- `scripts/migrate-knowledge-to-supabase.mjs`: migration script for local knowledge docs
+- `components/wedding-planner-app.tsx`: survey-first wedding planner UI
+- `lib/wedding-survey-schema.ts`: editable survey schema
+- `lib/wedding-profile.ts`: profile defaults, merge logic, onboarding completeness
+- `lib/wedding-validation.ts`: API validation for survey/profile and generation payloads
+- `lib/wedding-calculator.ts`: deterministic wedding budget and tradeoff logic
+- `lib/wedding-retrieval.ts`: structured vendor/venue retrieval plus document retrieval
+- `data/wedding-knowledge.ts`: local wedding vendor and venue knowledge base
+- `lib/prompt.ts`: wedding planner system prompt and prompt assembly
+- `lib/llm.ts`: wedding planning orchestration and structured response generation
+- `lib/planner-store.ts`: Supabase-or-local persistence for profiles and sessions
+- `lib/knowledge-store.ts`: Supabase-or-local persistence for knowledge docs
+- `lib/vector-store.ts`: Supabase-or-local vector indexing and search
 
 ## Run locally
 
-1. Install dependencies:
+Install dependencies:
 
 ```bash
 npm install --legacy-peer-deps
 ```
 
-2. Set environment variables in `.env.local` or `.env`.
-
-3. Start the dev server:
+Start the app:
 
 ```bash
 npm run dev
@@ -69,7 +72,7 @@ Open `http://localhost:3000`.
 
 ## Environment variables
 
-Required for model generation:
+Required for live LLM generation:
 
 - `OPENAI_API_KEY`
 
@@ -82,25 +85,29 @@ Optional:
 - `RAG_CHUNK_SIZE`
 - `RAG_CHUNK_OVERLAP`
 
-Use [ .env.supabase.example ](/C:/Users/Joshu/Documents/Assignments/Foundations%20of%20Deep%20Learning/Homework/Profile_Aware_AI_Assistant/.env.supabase.example#L1) as a template, but copy those values into a real env file. The app does not read the example file automatically.
+Use `.env.supabase.example` as a template, but copy values into `.env.local` or `.env`.
 
 ## Supabase setup
 
 1. Open Supabase SQL Editor.
-2. Paste and run [schema.sql](/C:/Users/Joshu/Documents/Assignments/Foundations%20of%20Deep%20Learning/Homework/Profile_Aware_AI_Assistant/supabase/schema.sql#L1).
-3. Add these to your real env file:
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `OPENAI_API_KEY`
-4. Restart the dev server.
+2. Paste and run `supabase/schema.sql`.
+3. Add your `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to your real env file.
+4. Restart the app.
+
+The current schema includes:
+
+- `wedding_profiles`
+- `planner_sessions`
+- `knowledge_documents`
+- `knowledge_chunks`
 
 Notes:
 
-- The schema uses `vector(1536)`, which matches `text-embedding-3-small`.
-- The schema explicitly disables RLS on the internal knowledge tables used by this app.
-- Make sure `SUPABASE_SERVICE_ROLE_KEY` is the service-role key, not the anon key.
+- `knowledge_chunks.embedding` uses `vector(1536)` for `text-embedding-3-small`.
+- The schema disables RLS on the internal app tables used by this project.
+- Use the service-role key, not the anon key.
 
-## Migrate existing local knowledge docs to Supabase
+## Migrating local knowledge docs to Supabase
 
 After Supabase is configured, run:
 
@@ -108,51 +115,43 @@ After Supabase is configured, run:
 npm run migrate:supabase-knowledge
 ```
 
-What the migration does:
+The migration:
 
-- Reads documents from `data/store.json`
-- Upserts them into `knowledge_documents`
-- Reuses existing local chunk embeddings from `data/vector-store.json` when available
-- Re-embeds only documents that do not already have local chunk embeddings and only if `OPENAI_API_KEY` is available
+- reads documents from `data/store.json`
+- writes them to `knowledge_documents`
+- reuses local embeddings from `data/vector-store.json` when possible
+- only calls OpenAI for docs that do not already have local embeddings
+- continues past per-document indexing failures and reports them at the end
 
-If OpenAI quota is unavailable, documents can still migrate without fresh indexing if they already have local embeddings.
+## Testing
 
-## RAG behavior
+Run the deterministic planner tests with:
 
-RAG retrieval runs only when `options.citeSources` is enabled in `POST /api/generate`.
+```bash
+npm test
+```
 
-- When `citeSources: false`, no retrieval runs.
-- When `citeSources: true`, the app builds a retrieval query from the task, refinement, and selected profile fields.
-- Retrieved chunks are injected into the assembled prompt under `Retrieved Context`.
-- Returned citations are based on the retrieved chunk sources.
+Current tests cover:
 
-## Debugging retrieval
-
-Enable `Include RAG debug metadata` in the UI to inspect:
-
-- `retrievalRan`
-- `reason`
-- retrieval query
-- selected sources and similarity scores
-
-The generated output also exposes the fully assembled prompt for inspection.
+- priority-sensitive category allocation
+- cheaper-plan scenario calculation
+- guest-count increase tradeoff behavior
 
 ## API quick reference
 
-- `GET /api/profile`: fetch the current user's profile
-- `PUT /api/profile`: save the current user's profile
-- `POST /api/generate`: generate a structured response and optionally run retrieval
-- `GET /api/knowledge`: list the current user's knowledge docs
-- `POST /api/knowledge`: create a knowledge doc
-- `PUT /api/knowledge/:id`: update a knowledge doc and reindex it
-- `DELETE /api/knowledge/:id`: delete a knowledge doc and remove its indexed chunks
-- `POST /api/feedback`: attach thumbs up/down feedback to a generated session
+- `GET /api/profile`: fetch the current wedding profile
+- `PUT /api/profile`: save survey progress or completed wedding profile
+- `POST /api/generate`: generate a structured wedding plan
+- `POST /api/feedback`: attach thumbs up/down feedback to a planner session
+- `GET /api/knowledge`: list local knowledge notes
+- `POST /api/knowledge`: create a knowledge note
+- `PUT /api/knowledge/:id`: update a knowledge note
+- `DELETE /api/knowledge/:id`: delete a knowledge note
 
 ## Verification
 
-Validated during this session with:
+Validated in this repo with:
 
-- `npm install --legacy-peer-deps`
 - `npm run typecheck`
 - `npm run lint`
 

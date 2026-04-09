@@ -14,6 +14,7 @@ export const DEFAULT_WEDDING_PROFILE: WeddingProfile = {
   constraints: "",
   ceremonyType: "ceremony and reception",
   cateringPreference: "buffet or family style",
+  surveyStep: 0,
   onboardingComplete: false,
 };
 

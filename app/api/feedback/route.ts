@@ -69,7 +69,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { updateSessionFeedback } from "@/lib/store";
+import { updatePlannerSessionFeedback } from "@/lib/planner-store";
 
 export async function POST(request: NextRequest) {
   const { sessionId, rating, feedback } = (await request.json()) as {
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       { error: "sessionId and rating are required." },
       { status: 400 },
     );
-  const updated = await updateSessionFeedback(sessionId, rating, feedback);
+  const updated = await updatePlannerSessionFeedback(sessionId, rating, feedback);
   if (!updated)
     return NextResponse.json({ error: "Session not found." }, { status: 404 });
   return NextResponse.json({ ok: true });
