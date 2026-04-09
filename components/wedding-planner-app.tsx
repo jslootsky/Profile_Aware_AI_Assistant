@@ -61,6 +61,7 @@ export function WeddingPlannerApp() {
   const isOnboardingComplete =
     isWeddingProfileComplete(profile) && profile.onboardingComplete;
   const isSurveyMode = !isOnboardingComplete || isEditingSurvey;
+  const canJumpBetweenQuestions = isOnboardingComplete && isEditingSurvey;
   const budgetSnapshot = useMemo(() => calculateWeddingBudget(profile), [profile]);
   const canSubmit = useMemo(
     () => isOnboardingComplete && task.trim().length > 0,
@@ -112,7 +113,7 @@ export function WeddingPlannerApp() {
     const nextProfile = mergeWeddingProfile({
       ...profile,
       surveyStep: Math.max(0, Math.min(nextStep, weddingSurveySchema.length - 1)),
-      onboardingComplete: false,
+      onboardingComplete: isEditingSurvey ? profile.onboardingComplete : false,
     });
     await persistProfile(nextProfile, "Survey progress saved.");
   }
@@ -277,8 +278,48 @@ export function WeddingPlannerApp() {
     return (
       <main className="min-h-screen bg-[linear-gradient(160deg,#fff7ed_0%,#fff1f2_50%,#ffffff_100%)] p-6 text-slate-900">
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl items-center justify-center">
-          <section className="grid w-full gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="rounded-[2rem] bg-white p-8 shadow-xl ring-1 ring-rose-100">
+          <section
+            className={`grid w-full items-start gap-6 ${
+              canJumpBetweenQuestions
+                ? "lg:grid-cols-[0.62fr_1fr_0.78fr]"
+                : "lg:grid-cols-[1.15fr_0.85fr]"
+            }`}
+          >
+            {canJumpBetweenQuestions && (
+              <aside className="self-start rounded-[2rem] bg-white p-5 shadow-xl ring-1 ring-rose-100">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-rose-600">
+                  Survey Map
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">Jump to a question</h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Available only in edit mode after the survey has been completed.
+                </p>
+                <div className="mt-5 space-y-2">
+                  {weddingSurveySchema.map((question, index) => {
+                    const isActive = index === currentStep;
+                    return (
+                      <button
+                        key={question.id}
+                        type="button"
+                        onClick={() => void goToSurveyStep(index)}
+                        className={`w-full rounded-2xl border px-3 py-3 text-left text-sm ${
+                          isActive
+                            ? "border-rose-300 bg-rose-50 text-rose-700"
+                            : "border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
+                        <span className="block text-xs uppercase tracking-wide text-slate-400">
+                          Step {index + 1}
+                        </span>
+                        <span className="mt-1 block font-medium">{question.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </aside>
+            )}
+
+            <div className="self-start rounded-[2rem] bg-white p-8 shadow-xl ring-1 ring-rose-100">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.24em] text-rose-600">
@@ -334,7 +375,7 @@ export function WeddingPlannerApp() {
                       onClick={() => setIsEditingSurvey(false)}
                       className="rounded-xl border px-4 py-2 disabled:opacity-50"
                     >
-                      Exit edit mode
+                      Exit
                     </button>
                   )}
                   <button
@@ -350,7 +391,7 @@ export function WeddingPlannerApp() {
                     }
                     className="rounded-xl border px-4 py-2 disabled:opacity-50"
                   >
-                    Save progress
+                    Save
                   </button>
                   <button
                     disabled={isSavingSurvey}
@@ -358,8 +399,8 @@ export function WeddingPlannerApp() {
                     className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
                   >
                     {currentStep === weddingSurveySchema.length - 1
-                      ? "Finish survey"
-                      : "Next question"}
+                      ? "Finish"
+                      : "Next"}
                   </button>
                 </div>
               </div>
@@ -372,7 +413,7 @@ export function WeddingPlannerApp() {
               )}
             </div>
 
-            <aside className="rounded-[2rem] bg-slate-950 p-8 text-white shadow-xl">
+            <aside className="self-start rounded-[2rem] bg-slate-950 p-8 text-white shadow-xl">
               <h2 className="text-2xl font-semibold">Live planning snapshot</h2>
               <p className="mt-3 text-sm text-slate-300">
                 These numbers update as you answer the survey so you can see how your constraints shape the plan.
