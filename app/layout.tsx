@@ -2,8 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Profile-Aware AI Assistant",
-  description: "Personalized recommendation and report assistant"
+  title: "Budget Wedding Planner",
+  description: "Constraint-aware wedding planning focused on affordability"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -180,19 +180,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
 import { getProfile, saveProfile } from "@/lib/store";
-import { UserProfile } from "@/lib/types";
+import { WeddingProfile } from "@/lib/types";
+import { mergeWeddingProfile } from "@/lib/wedding-profile";
 
 export async function GET(request: NextRequest) {
   const user = await getAuthedUser(request);
   const profile = await getProfile(user.id);
-  const response = NextResponse.json({ profile });
+  const response = NextResponse.json({ profile: mergeWeddingProfile(profile) });
   setAuthedCookie(response, user.id);
   return response;
 }
 
 export async function PUT(request: NextRequest) {
   const user = await getAuthedUser(request);
-  const profile = (await request.json()) as UserProfile;
+  const profile = mergeWeddingProfile((await request.json()) as Partial<WeddingProfile>);
   await saveProfile(user.id, profile);
   const response = NextResponse.json({ ok: true });
   setAuthedCookie(response, user.id);

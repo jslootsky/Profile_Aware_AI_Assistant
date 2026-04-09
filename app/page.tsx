@@ -1,5 +1,5 @@
-import { AssistantApp } from "@/components/assistant-app";
+import { WeddingPlannerApp } from "@/components/wedding-planner-app";
 
 export default function HomePage() {
-  return <AssistantApp />;
+  return <WeddingPlannerApp />;
 }

@@ -134,21 +134,14 @@ import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
 import { saveProfile, saveSession } from "@/lib/store";
 import { generateStructuredResponse } from "@/lib/llm";
 import { GenerateRequest } from "@/lib/types";
+import { DEFAULT_WEDDING_PROFILE, mergeWeddingProfile } from "@/lib/wedding-profile";
 
-const DEFAULT_PROFILE: GenerateRequest["profile"] = {
-  roleIndustry: "",
-  goals: "",
-  tone: "Professional and concise",
-  constraints: "",
-  preferredFormat: "report",
-  dos: "",
-  donts: "",
-};
+const DEFAULT_PROFILE: GenerateRequest["profile"] = DEFAULT_WEDDING_PROFILE;
 
 const DEFAULT_OPTIONS: GenerateRequest["options"] = {
   verbosity: "medium",
-  reportType: "general",
-  citeSources: false,
+  reportType: "full-plan",
+  citeSources: true,
   ragDebug: false,
 };
 
@@ -165,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     // Normalize payload so downstream code never sees undefined/null shapes
     const payload: GenerateRequest = {
-      profile: incoming.profile ?? DEFAULT_PROFILE,
+      profile: mergeWeddingProfile(incoming.profile ?? DEFAULT_PROFILE),
       task,
       refinement: incoming.refinement ?? "",
       options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}) },

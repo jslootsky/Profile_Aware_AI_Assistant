@@ -126,10 +126,18 @@
  * =============================================================================
  */
 
-import { buildPrompt } from "./prompt";
-import { retrieveContextDetailed } from "./rag";
+import {
+  buildPrompt,
+  serializeBudgetBreakdown,
+  WEDDING_SYSTEM_PROMPT,
+} from "./prompt";
 import { GenerateRequest, StructuredResponse, RagDebugInfo } from "./types";
 import OpenAI from "openai";
+import {
+  calculateScenarioAdjustments,
+  calculateWeddingBudget,
+} from "./wedding-calculator";
+import { retrievePlanningContext } from "./wedding-retrieval";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-4";
 
@@ -140,18 +148,53 @@ const structuredSchema = {
     additionalProperties: false,
     properties: {
       summary: { type: "string" },
-      assumptions: { type: "array", items: { type: "string" } },
-      recommendation: { type: "string" },
-      steps: { type: "array", items: { type: "string" } },
-      risks: { type: "array", items: { type: "string" } },
+      budgetBreakdown: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            category: { type: "string" },
+            allocation: { type: "number" },
+            estimatedRange: { type: "string" },
+            rationale: { type: "string" },
+          },
+          required: ["category", "allocation", "estimatedRange", "rationale"],
+        },
+      },
+      vendorSuggestions: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            category: { type: "string" },
+            name: { type: "string" },
+            region: { type: "string" },
+            priceEstimate: { type: "string" },
+            whyItFits: { type: "string" },
+          },
+          required: [
+            "category",
+            "name",
+            "region",
+            "priceEstimate",
+            "whyItFits",
+          ],
+        },
+      },
+      tradeoffs: { type: "array", items: { type: "string" } },
+      savingsOptions: { type: "array", items: { type: "string" } },
+      nextSteps: { type: "array", items: { type: "string" } },
       citations: { type: "array", items: { type: "string" } },
     },
     required: [
       "summary",
-      "assumptions",
-      "recommendation",
-      "steps",
-      "risks",
+      "budgetBreakdown",
+      "vendorSuggestions",
+      "tradeoffs",
+      "savingsOptions",
+      "nextSteps",
       "citations",
     ],
   },
@@ -159,23 +202,23 @@ const structuredSchema = {
 
 function fallbackResponse(
   input: GenerateRequest,
+  budgetPlan = calculateWeddingBudget(input.profile),
   ragSources: string[] = [],
 ): StructuredResponse {
   return {
-    summary: `Prepared a ${input.options.reportType} response tailored`,
-    assumptions: [
-      `Primary goal: ${input.profile.goals || "not provided"}`,
-      `Tone: ${input.profile.tone || "professional"}`,
-      `Constraints respected: ${input.profile.constraints || "none stated"}`,
+    summary: `Built a practical wedding planning baseline for ${input.profile.guestCount} guests on a $${input.profile.totalBudget.toLocaleString()} budget in ${input.profile.location || "your location"}.`,
+    budgetBreakdown: budgetPlan.lineItems,
+    vendorSuggestions: [],
+    tradeoffs: [
+      ...budgetPlan.tradeoffs,
+      "Missing OPENAI_API_KEY: the app returned the deterministic planning fallback instead of a model-generated plan.",
     ],
-    recommendation: `Use a ${input.profile.preferredFormat} style output with emphasis on ${input.options.reportType}.`,
-    steps: [
-      "Confirm object and audience.",
-      "Draft response.",
-      "Review for clarity.",
-      "Iterate with follow-up.",
+    savingsOptions: budgetPlan.savingsOptions,
+    nextSteps: [
+      "Confirm your must-keep priorities before contacting venues or caterers.",
+      "Compare your guest count against your target budget per guest.",
+      "Shortlist two or three affordable venue formats before requesting quotes.",
     ],
-    risks: ["Missing OPENAI_API_KEY: returned fallback response."],
     citations: ragSources,
   };
 }
@@ -197,8 +240,11 @@ function buildRetrievalQuery(input: GenerateRequest): string {
   return [
     `Task: ${input.task}`,
     `Refinement: ${input.refinement || "none"}`,
-    `Role / Industry: ${input.profile.roleIndustry || "none"}`,
-    `Goals: ${input.profile.goals || "none"}`,
+    `Budget: ${input.profile.totalBudget}`,
+    `Guest Count: ${input.profile.guestCount}`,
+    `Location: ${input.profile.location || "none"}`,
+    `Season: ${input.profile.season}`,
+    `Priorities: ${input.profile.priorities.join(", ") || "none"}`,
     `Constraints: ${input.profile.constraints || "none"}`,
   ].join("\n");
 }
@@ -208,23 +254,40 @@ export async function generateStructuredResponse(
   input: GenerateRequest,
 ) {
   const retrievalQuery = buildRetrievalQuery(input);
+  const budgetPlan = calculateWeddingBudget(input.profile);
+  const cheaperScenario = calculateScenarioAdjustments(input.profile, undefined, 0.1);
 
   const retrieval = input.options.citeSources
-    ? await retrieveContextDetailed(userId, retrievalQuery)
-    : { snippets: [], reason: "ok" as const };
+    ? await retrievePlanningContext(userId, input.profile, retrievalQuery)
+    : {
+        vendorSuggestions: [],
+        documentRetrieval: { snippets: [], reason: "ok" as const },
+      };
 
-  const rag = retrieval.snippets;
+  const rag = retrieval.documentRetrieval.snippets;
+  const deterministicTradeoffText = [
+    `Budget per guest: $${budgetPlan.budgetPerGuest}`,
+    ...budgetPlan.tradeoffs,
+    `If the budget needs to drop by 10%, the recalculated food/venue pressure is based on a total budget of $${cheaperScenario.totalBudget.toLocaleString()}.`,
+    ...budgetPlan.savingsOptions,
+  ].join("\n");
 
-  const prompt = `${buildPrompt(input)}\n\nRetrieved Context:\n${
-    rag.length
+  const prompt = buildPrompt(input, {
+    budgetBreakdownText: `${serializeBudgetBreakdown(
+      budgetPlan.lineItems,
+    )}\n${deterministicTradeoffText}`,
+    vendorSuggestions: retrieval.vendorSuggestions,
+    retrievedContextText: rag.length
       ? rag.map((r, i) => `[${i + 1}] ${r.source}: ${r.text}`).join("\n")
-      : "(none)"
-  }`;
+      : "(none)",
+  });
 
   const debug: RagDebugInfo = {
     enabled: Boolean(input.options.ragDebug),
     retrievalRan: input.options.citeSources,
-    reason: input.options.citeSources ? retrieval.reason : "citations-disabled",
+    reason: input.options.citeSources
+      ? retrieval.documentRetrieval.reason
+      : "citations-disabled",
     query: retrievalQuery,
     selected: rag.map((item) => ({ source: item.source, score: item.score })),
   };
@@ -232,8 +295,10 @@ export async function generateStructuredResponse(
   if (!process.env.OPENAI_API_KEY) {
     const response = fallbackResponse(
       input,
+      budgetPlan,
       rag.map((r) => r.source),
     );
+    response.vendorSuggestions = retrieval.vendorSuggestions;
     return { prompt, response, debug };
   }
 
@@ -243,8 +308,7 @@ export async function generateStructuredResponse(
     input: [
       {
         role: "system",
-        content:
-          "You are an assistant generating structured decision-ready reports.",
+        content: WEDDING_SYSTEM_PROMPT,
       },
       { role: "user", content: prompt },
     ],
@@ -262,6 +326,14 @@ export async function generateStructuredResponse(
   const response = JSON.parse(raw) as StructuredResponse;
 
   response.citations = response.citations || [];
+  response.budgetBreakdown =
+    response.budgetBreakdown?.length > 0
+      ? response.budgetBreakdown
+      : budgetPlan.lineItems;
+  response.vendorSuggestions =
+    response.vendorSuggestions?.length > 0
+      ? response.vendorSuggestions
+      : retrieval.vendorSuggestions;
 
   if (input.options.citeSources) {
     response.citations = rag.map((r, idx) => `[${idx + 1}] ${r.source}`);
