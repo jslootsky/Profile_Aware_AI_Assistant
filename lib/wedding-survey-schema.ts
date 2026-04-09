@@ -83,18 +83,19 @@ export const weddingSurveySchema: SurveyQuestion[] = [
   {
     id: "diyWillingness",
     label: "How much DIY are you open to?",
-    type: "select",
+    type: "select-with-custom",
     placeholder: "Select an option",
     options: [
       { label: "None", value: "none" },
       { label: "Some", value: "some" },
       { label: "A lot", value: "high" },
+      { label: "Other (type your own)", value: "__custom__" },
     ],
   },
   {
     id: "style",
     label: "Preferred style",
-    type: "select",
+    type: "select-with-custom",
     required: true,
     placeholder: "Select a style",
     options: [
@@ -105,6 +106,7 @@ export const weddingSurveySchema: SurveyQuestion[] = [
       { label: "Rustic", value: "rustic" },
       { label: "Minimal", value: "minimal" },
       { label: "Cultural / Traditional", value: "cultural-traditional" },
+      { label: "Other (type your own)", value: "__custom__" },
     ],
   },
   {
@@ -116,8 +118,18 @@ export const weddingSurveySchema: SurveyQuestion[] = [
   {
     id: "cateringPreference",
     label: "Food approach",
-    type: "text",
-    placeholder: "Buffet, taco bar, brunch, plated dinner",
+    type: "select-with-custom",
+    placeholder: "Select a food approach",
+    options: [
+      { label: "Buffet", value: "buffet" },
+      { label: "Family style", value: "family style" },
+      { label: "Taco bar / food station", value: "taco bar / food station" },
+      { label: "Brunch", value: "brunch" },
+      { label: "Plated dinner", value: "plated dinner" },
+      { label: "Restaurant buyout", value: "restaurant buyout" },
+      { label: "Drop-off catering", value: "drop-off catering" },
+      { label: "Other (type your own)", value: "__custom__" },
+    ],
   },
   {
     id: "constraints",

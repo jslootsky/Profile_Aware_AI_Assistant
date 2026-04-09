@@ -3,7 +3,11 @@ import { weddingSurveySchema } from "./wedding-survey-schema";
 import { mergeWeddingProfile } from "./wedding-profile";
 
 function isNonEmptyString(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0;
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.trim() !== "__custom__"
+  );
 }
 
 export function validateWeddingProfile(

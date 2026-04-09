@@ -5,17 +5,9 @@ export type WeddingSeason =
   | "fall"
   | "winter"
   | "flexible";
-export type WeddingStyle =
-  | ""
-  | "classic"
-  | "garden"
-  | "modern"
-  | "rustic"
-  | "minimal"
-  | "cultural-traditional"
-  | "casual";
+export type WeddingStyle = string;
 export type AlcoholPreference = "" | "yes" | "no" | "maybe";
-export type DiyLevel = "" | "none" | "some" | "high";
+export type DiyLevel = string;
 export type WeddingPriority =
   | "food"
   | "venue"
@@ -31,6 +23,7 @@ export type SurveyFieldType =
   | "textarea"
   | "number"
   | "select"
+  | "select-with-custom"
   | "multiselect"
   | "boolean";
 

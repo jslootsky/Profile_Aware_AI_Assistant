@@ -328,7 +328,7 @@ export function WeddingPlannerApp() {
             />
           </div>
 
-          <div className="mt-5 flex items-center justify-between gap-3">
+          <div className="sticky bottom-4 mt-5 flex items-center justify-between gap-3 rounded-2xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200 backdrop-blur">
             <button
               disabled={currentStep === 0 || isSavingSurvey}
               onClick={() => void goToSurveyStep(currentStep - 1)}
@@ -704,7 +704,7 @@ function SurveyStepCard({
       {question.description && (
         <p className="mt-2 text-sm text-slate-600">{question.description}</p>
       )}
-      <div className="mt-5">
+      <div className="mt-5 min-h-[200px]">
         <SurveyInput question={question} value={value} onChange={onChange} />
       </div>
     </div>
@@ -747,6 +747,42 @@ function SurveyInput({
           </option>
         ))}
       </select>
+    );
+  }
+
+  if (question.type === "select-with-custom") {
+    const optionValues = (question.options || []).map((option) => option.value);
+    const currentValue = String(value || "");
+    const isCustom =
+      currentValue.length > 0 &&
+      currentValue !== "__custom__" &&
+      !optionValues.includes(currentValue);
+    const selectValue = isCustom ? "__custom__" : currentValue;
+
+    return (
+      <div className="space-y-3">
+        <select
+          className={baseClass}
+          value={selectValue}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">{question.placeholder || "Select an option"}</option>
+          {(question.options || []).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {(selectValue === "__custom__" || isCustom) && (
+          <input
+            className={baseClass}
+            type="text"
+            placeholder="Type your custom answer"
+            value={isCustom ? currentValue : ""}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )}
+      </div>
     );
   }
 
