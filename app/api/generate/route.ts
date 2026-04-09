@@ -131,24 +131,18 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
-import { saveProfile, saveSession } from "@/lib/store";
 import { generateStructuredResponse } from "@/lib/llm";
 import { GenerateRequest } from "@/lib/types";
+import { DEFAULT_WEDDING_PROFILE, mergeWeddingProfile } from "@/lib/wedding-profile";
+import { savePlannerProfile, savePlannerSession } from "@/lib/planner-store";
+import { validateGenerateRequest } from "@/lib/wedding-validation";
 
-const DEFAULT_PROFILE: GenerateRequest["profile"] = {
-  roleIndustry: "",
-  goals: "",
-  tone: "Professional and concise",
-  constraints: "",
-  preferredFormat: "report",
-  dos: "",
-  donts: "",
-};
+const DEFAULT_PROFILE: GenerateRequest["profile"] = DEFAULT_WEDDING_PROFILE;
 
 const DEFAULT_OPTIONS: GenerateRequest["options"] = {
   verbosity: "medium",
-  reportType: "general",
-  citeSources: false,
+  reportType: "full-plan",
+  citeSources: true,
   ragDebug: false,
 };
 
@@ -157,15 +151,18 @@ export async function POST(request: NextRequest) {
     // Parse body safely
     const incoming = (await request.json()) as Partial<GenerateRequest>;
 
-    // Validate required task
-    const task = incoming?.task?.trim();
-    if (!task) {
-      return NextResponse.json({ error: "Task is required." }, { status: 400 });
+    const validation = validateGenerateRequest(incoming);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.errors.join(" ") },
+        { status: 400 },
+      );
     }
+    const task = incoming?.task?.trim() as string;
 
     // Normalize payload so downstream code never sees undefined/null shapes
     const payload: GenerateRequest = {
-      profile: incoming.profile ?? DEFAULT_PROFILE,
+      profile: mergeWeddingProfile(validation.profileValidation.profile),
       task,
       refinement: incoming.refinement ?? "",
       options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}) },
@@ -174,14 +171,14 @@ export async function POST(request: NextRequest) {
 
     // Resolve user identity (cookie/header) and persist profile
     const user = await getAuthedUser(request);
-    await saveProfile(user.id, payload.profile);
+    await savePlannerProfile(user.id, payload.profile);
 
     // Generate response (structured JSON or fallback)
     const result = await generateStructuredResponse(user.id, payload);
 
     // Persist session
     const sessionId = crypto.randomUUID();
-    await saveSession({
+    await savePlannerSession({
       id: sessionId,
       userId: user.id,
       task: payload.task,

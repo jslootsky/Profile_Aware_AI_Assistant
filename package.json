@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "migrate:supabase-knowledge": "node scripts/migrate-knowledge-to-supabase.mjs",
+    "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "eslint-config-next": "14.2.5",
     "postcss": "8.4.39",
     "tailwindcss": "3.4.7",
+    "tsx": "^4.20.5",
     "typescript": "5.5.4"
   }
 }

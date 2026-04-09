@@ -158,12 +158,12 @@ import {
   KnowledgeDocument,
   StoredSessionOutput,
   StoredUser,
-  UserProfile,
+  WeddingProfile,
 } from "./types";
 
 interface DataStore {
   users: StoredUser[]; //array of users with id and createdAt
-  profiles: Record<string, UserProfile>; //mapping of userId to a user's profile/preferences
+  profiles: Record<string, WeddingProfile>; //mapping of userId to a user's profile/preferences
   sessions: StoredSessionOutput[]; //a list of saved outputs (AI reports, etc) tied to a userId
   docs: KnowledgeDocument[]; //a list of knowledge documents for RAG tied to a userId
 }
@@ -203,14 +203,14 @@ export async function getOrCreateUser(userId?: string): Promise<StoredUser> {
   return user;
 }
 
-export async function getProfile(userId: string): Promise<UserProfile | null> {
+export async function getProfile(userId: string): Promise<WeddingProfile | null> {
   const store = await ensureStore();
   return store.profiles[userId] || null;
 }
 
 export async function saveProfile(
   userId: string,
-  profile: UserProfile,
+  profile: WeddingProfile,
 ): Promise<void> {
   const store = await ensureStore();
   store.profiles[userId] = profile;

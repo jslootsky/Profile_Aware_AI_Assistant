@@ -1,18 +1,70 @@
-export type PreferredFormat = "bullets" | "report" | "table";
+export type WeddingSeason =
+  | ""
+  | "spring"
+  | "summer"
+  | "fall"
+  | "winter"
+  | "flexible";
+export type WeddingStyle = string;
+export type AlcoholPreference = "" | "yes" | "no" | "maybe";
+export type DiyLevel = string;
+export type WeddingPriority =
+  | "food"
+  | "venue"
+  | "photo-video"
+  | "music"
+  | "decor"
+  | "attire"
+  | "guest-experience"
+  | "low-stress";
 
-export interface UserProfile {
-  roleIndustry: string;
-  goals: string;
-  tone: string;
+export type SurveyFieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "select"
+  | "select-with-custom"
+  | "multiselect"
+  | "boolean";
+
+export interface SurveyOption {
+  label: string;
+  value: string;
+}
+
+export interface SurveyQuestion {
+  id: keyof WeddingProfile;
+  label: string;
+  type: SurveyFieldType;
+  description?: string;
+  required?: boolean;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  options?: SurveyOption[];
+}
+
+export interface WeddingProfile {
+  partnerNames: string;
+  totalBudget: number;
+  guestCount: number;
+  location: string;
+  season: WeddingSeason;
+  targetDate: string;
+  priorities: WeddingPriority[];
+  alcoholAllowed: AlcoholPreference;
+  diyWillingness: DiyLevel;
+  style: WeddingStyle;
   constraints: string;
-  preferredFormat: PreferredFormat;
-  dos: string;
-  donts: string;
+  ceremonyType: string;
+  cateringPreference: string;
+  surveyStep: number;
+  onboardingComplete: boolean;
 }
 
 export interface RequestOptions {
   verbosity: "low" | "medium" | "high";
-  reportType: "general" | "comparison" | "action-plan";
+  reportType: "full-plan" | "budget-revision" | "vendor-shortlist";
   citeSources: boolean;
   ragDebug?: boolean;
 }
@@ -31,19 +83,35 @@ export interface RagDebugInfo {
 }
 
 export interface GenerateRequest {
-  profile: UserProfile;
+  profile: WeddingProfile;
   task: string;
   refinement?: string;
   options: RequestOptions;
   history: string[];
 }
 
+export interface BudgetLineItem {
+  category: string;
+  allocation: number;
+  estimatedRange: string;
+  rationale: string;
+}
+
+export interface VendorSuggestion {
+  category: string;
+  name: string;
+  region: string;
+  priceEstimate: string;
+  whyItFits: string;
+}
+
 export interface StructuredResponse {
   summary: string;
-  assumptions: string[];
-  recommendation: string;
-  steps: string[];
-  risks: string[];
+  budgetBreakdown: BudgetLineItem[];
+  vendorSuggestions: VendorSuggestion[];
+  tradeoffs: string[];
+  savingsOptions: string[];
+  nextSteps: string[];
   citations: string[];
 }
 
@@ -72,9 +140,24 @@ export interface KnowledgeDocument {
   createdAt: string;
 }
 
-export interface AnalyticsSummary {
-  totalGenerations: number;
-  positiveRatings: number;
-  negativeRatings: number;
-  citationUsageRate: number;
+export interface WeddingCostPlan {
+  totalBudget: number;
+  guestCount: number;
+  budgetPerGuest: number;
+  lineItems: BudgetLineItem[];
+  tradeoffs: string[];
+  savingsOptions: string[];
+}
+
+export interface VendorKnowledgeItem {
+  id: string;
+  category: string;
+  name: string;
+  region: string;
+  priceTier: "low" | "medium" | "high";
+  estimatedCost: string;
+  guestCapacity?: string;
+  styleTags: string[];
+  notes: string;
+  alcoholSupport?: string;
 }
