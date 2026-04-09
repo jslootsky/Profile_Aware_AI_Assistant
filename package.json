@@ -7,9 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "migrate:supabase-knowledge": "node scripts/migrate-knowledge-to-supabase.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@langchain/community": "^0.3.42",
+    "@langchain/core": "^0.3.58",
+    "@langchain/openai": "^0.5.16",
+    "@langchain/textsplitters": "^0.1.0",
+    "@supabase/supabase-js": "^2.49.8",
     "next": "^14.2.35",
     "openai": "^6.25.0",
     "react": "18.3.1",

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
 import {
-  deleteKnowledgeDoc,
+  deleteKnowledgeDocument,
   getKnowledgeDocumentById,
-  updateKnowledgeDoc,
-} from "@/lib/store";
+  updateKnowledgeDocument,
+} from "@/lib/knowledge-store";
 import { embedForStorage, removeFromStorage, isIndexed } from "@/lib/rag";
 
 export async function PUT(
@@ -34,7 +34,7 @@ export async function PUT(
     await embedForStorage(user.id, source, content, params.id);
   }
 
-  const updated = await updateKnowledgeDoc(params.id, {
+  const updated = await updateKnowledgeDocument(params.id, {
     source,
     content,
     embedding: [], 
@@ -60,7 +60,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Document not found." }, { status: 404 });
   }
 
-  await deleteKnowledgeDoc(params.id);
+  await deleteKnowledgeDocument(params.id);
   await removeFromStorage(params.id);
 
   const response = NextResponse.json({ deleted: true });

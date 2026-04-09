@@ -11,6 +11,7 @@ A lightweight Next.js + TypeScript MVP for generating personalized AI reports fr
 - Iteration flow: refinement instruction + revision history.
 - API endpoint and prompt assembly logic for profile-aware generation.
 - File-backed persistence in `data/store.json`. (eventually moving to PostgreSQL)
+- Optional Supabase-backed knowledge store and vector search for production RAG.
 
 ## Tech stack
 
@@ -34,6 +35,30 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+## Supabase + LangChain setup
+
+1. Copy `.env.supabase.example` to `.env.local` or merge the values into your existing `.env`.
+2. Paste `supabase/schema.sql` into the Supabase SQL editor and run it.
+3. Fill in:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `OPENAI_API_KEY`
+4. Install the new packages and restart the dev server.
+
+If Supabase is not configured, the app falls back to the existing local JSON-backed knowledge store.
+
+### Migrate existing local knowledge docs
+
+After Supabase is configured, run:
+
+```bash
+npm run migrate:supabase-knowledge
+```
+
+The migration script reads `data/store.json`, upserts documents into `knowledge_documents`, and reindexes chunks into `knowledge_chunks` when `OPENAI_API_KEY` is available.
+
+If you hit a row-level security error during migration, rerun the latest `supabase/schema.sql`. It now explicitly disables RLS on the internal `knowledge_documents` and `knowledge_chunks` tables used by this app.
 
 ## RAG usage and trigger
 
@@ -92,7 +117,11 @@ In the UI, open **View RAG debug metadata** and **View assembled prompt** to ins
 - `app/api/knowledge/[id]/route.ts`: knowledge update/delete API.
 - `lib/llm.ts`: generation + profile-aware retrieval query + optional debug metadata.
 - `lib/rag.ts`: embedding + retrieval and ranking logic.
+- `lib/langchain.ts`: chunking and OpenAI embedding setup via LangChain.
+- `lib/knowledge-store.ts`: knowledge document CRUD with Supabase fallback.
+- `lib/supabase.ts`: Supabase admin client helper.
 - `lib/store.ts`: file-backed persistence (profiles, sessions, docs).
+- `supabase/schema.sql`: pasteable Supabase schema for documents + vector search.
 - `lib/prompt.ts`: prompt template composition.
 
 Optional environment variables:
@@ -100,6 +129,10 @@ Optional environment variables:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (default: `gpt-4o-mini`)
 - `OPENAI_EMBED_MODEL` (default: `text-embedding-3-small`)
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `RAG_CHUNK_SIZE`
+- `RAG_CHUNK_OVERLAP`
 
 ## Next steps for production
 
