@@ -1,54 +1,106 @@
-# Profile-Aware AI Assistant (MVP)
+# Profile-Aware AI Assistant
 
-A lightweight Next.js + TypeScript MVP for generating personalized AI reports from reusable user profiles and iterative refinements.
+A Next.js + TypeScript app for generating structured, profile-aware AI reports with optional user-scoped RAG.
 
-## Included in this MVP
+## Current state
 
-- Profile capture: role/industry, goals, tone, constraints, format, do/don't instructions.
-- Request input: task text, verbosity, report type, cite sources toggle.
-- Knowledge Management UI for adding, listing, editing, and deleting user-scoped RAG documents.
-- Structured output schema: summary → assumptions → recommendation → steps → risks.
-- Iteration flow: refinement instruction + revision history.
-- API endpoint and prompt assembly logic for profile-aware generation.
-- File-backed persistence in `data/store.json`. (eventually moving to PostgreSQL)
-- Optional Supabase-backed knowledge store and vector search for production RAG.
+- Profile capture and persistence for role, goals, tone, constraints, format, and do/don't instructions.
+- Structured report generation with sections for summary, assumptions, recommendation, steps, risks, and optional citations.
+- Iterative refinement flow with saved revision history in the UI.
+- User-scoped knowledge management for adding, editing, listing, and deleting RAG documents.
+- Optional RAG debug output showing retrieval reason, retrieval query, and selected sources.
+- Lightweight cookie-based identity.
+- Feedback endpoint for thumbs up/down on generated sessions.
+
+## Storage model
+
+- Profiles, generated sessions, and feedback are currently stored locally in `data/store.json`.
+- Local fallback chunk embeddings are stored in `data/vector-store.json`.
+- Knowledge documents and vector search can optionally be moved to Supabase.
+- When Supabase is configured, document records are stored in `knowledge_documents` and chunk vectors are stored in `knowledge_chunks`.
+- If Supabase is not configured, knowledge storage falls back to the local JSON files.
 
 ## Tech stack
 
-- Next.js 14 + React 18 + TypeScript
+- Next.js 14
+- React 18
+- TypeScript
 - Tailwind CSS
-- Node.js runtime (single-repo frontend + API)
+- OpenAI SDK
+- LangChain JS for chunking and Supabase vector-store integration
+- Supabase Postgres + pgvector for optional production RAG storage
 
-## Features
+## Project structure
 
-- OpenAI SDK based structured generation (`lib/llm.ts`).
-- Cookie-based lightweight auth and per-user profile/session persistence (`lib/auth.ts`, `lib/store.ts`).
-- RAG pipeline with OpenAI embeddings and cosine vector search (`lib/rag.ts`).
-- PDF/DOC export endpoint and in-app citation renderer.
-- Analytics dashboard + quality feedback loop (thumbs up/down stored per generation).
+- `app/page.tsx`: main app entry
+- `components/assistant-app.tsx`: primary UI for profile input, generation, knowledge management, and debug views
+- `app/api/generate/route.ts`: report generation endpoint
+- `app/api/profile/route.ts`: profile fetch/save endpoint
+- `app/api/knowledge/route.ts`: knowledge list/create endpoint
+- `app/api/knowledge/[id]/route.ts`: knowledge update/delete endpoint
+- `app/api/feedback/route.ts`: session feedback endpoint
+- `lib/llm.ts`: prompt orchestration and model call
+- `lib/rag.ts`: retrieval orchestration used by generation
+- `lib/vector-store.ts`: vector store abstraction with Supabase primary path and local fallback
+- `lib/langchain.ts`: chunk splitting and embedding configuration
+- `lib/knowledge-store.ts`: knowledge document CRUD with Supabase primary path and local fallback
+- `lib/store.ts`: local JSON persistence for users, profiles, sessions, and fallback docs
+- `lib/supabase.ts`: Supabase admin client helper
+- `supabase/schema.sql`: pasteable SQL schema for Supabase setup
+- `scripts/migrate-knowledge-to-supabase.mjs`: migration script for local knowledge docs
 
 ## Run locally
 
+1. Install dependencies:
+
 ```bash
-npm install
+npm install --legacy-peer-deps
+```
+
+2. Set environment variables in `.env.local` or `.env`.
+
+3. Start the dev server:
+
+```bash
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-## Supabase + LangChain setup
+## Environment variables
 
-1. Copy `.env.supabase.example` to `.env.local` or merge the values into your existing `.env`.
-2. Paste `supabase/schema.sql` into the Supabase SQL editor and run it.
-3. Fill in:
+Required for model generation:
+
+- `OPENAI_API_KEY`
+
+Optional:
+
+- `OPENAI_MODEL`
+- `OPENAI_EMBED_MODEL`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `RAG_CHUNK_SIZE`
+- `RAG_CHUNK_OVERLAP`
+
+Use [ .env.supabase.example ](/C:/Users/Joshu/Documents/Assignments/Foundations%20of%20Deep%20Learning/Homework/Profile_Aware_AI_Assistant/.env.supabase.example#L1) as a template, but copy those values into a real env file. The app does not read the example file automatically.
+
+## Supabase setup
+
+1. Open Supabase SQL Editor.
+2. Paste and run [schema.sql](/C:/Users/Joshu/Documents/Assignments/Foundations%20of%20Deep%20Learning/Homework/Profile_Aware_AI_Assistant/supabase/schema.sql#L1).
+3. Add these to your real env file:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `OPENAI_API_KEY`
-4. Install the new packages and restart the dev server.
+4. Restart the dev server.
 
-If Supabase is not configured, the app falls back to the existing local JSON-backed knowledge store.
+Notes:
 
-### Migrate existing local knowledge docs
+- The schema uses `vector(1536)`, which matches `text-embedding-3-small`.
+- The schema explicitly disables RLS on the internal knowledge tables used by this app.
+- Make sure `SUPABASE_SERVICE_ROLE_KEY` is the service-role key, not the anon key.
+
+## Migrate existing local knowledge docs to Supabase
 
 After Supabase is configured, run:
 
@@ -56,83 +108,53 @@ After Supabase is configured, run:
 npm run migrate:supabase-knowledge
 ```
 
-The migration script reads `data/store.json`, upserts documents into `knowledge_documents`, and reindexes chunks into `knowledge_chunks` when `OPENAI_API_KEY` is available.
+What the migration does:
 
-If you hit a row-level security error during migration, rerun the latest `supabase/schema.sql`. It now explicitly disables RLS on the internal `knowledge_documents` and `knowledge_chunks` tables used by this app.
+- Reads documents from `data/store.json`
+- Upserts them into `knowledge_documents`
+- Reuses existing local chunk embeddings from `data/vector-store.json` when available
+- Re-embeds only documents that do not already have local chunk embeddings and only if `OPENAI_API_KEY` is available
 
-## RAG usage and trigger
+If OpenAI quota is unavailable, documents can still migrate without fresh indexing if they already have local embeddings.
 
-RAG retrieval runs only when `options.citeSources` is enabled in `/api/generate` requests.
+## RAG behavior
 
-- When `citeSources: false`, no retrieval is run.
-- When `citeSources: true`, query embedding + similarity search runs against user-scoped docs.
-- `OPENAI_API_KEY` is required for embeddings and retrieval.
+RAG retrieval runs only when `options.citeSources` is enabled in `POST /api/generate`.
 
-## Frontend guide: use and debug the RAG pipeline
+- When `citeSources: false`, no retrieval runs.
+- When `citeSources: true`, the app builds a retrieval query from the task, refinement, and selected profile fields.
+- Retrieved chunks are injected into the assembled prompt under `Retrieved Context`.
+- Returned citations are based on the retrieved chunk sources.
 
-### 1) Add knowledge sources
+## Debugging retrieval
 
-1. Open the **Knowledge Management (RAG)** section in the UI.
-2. Enter a source name and content.
-3. Click **Add document**.
-4. Confirm it appears in the per-user list.
-
-You can also **Edit** and **Delete** documents from this panel.
-
-### 2) Trigger retrieval
-
-1. In **Request + Controls**, keep **Cite sources** enabled.
-2. Submit a task.
-3. Retrieved entries are injected under `Retrieved Context` in the prompt and surfaced as citations.
-
-### 3) Debug retrieval behavior
-
-Enable **Include RAG debug metadata** and run generation.
-
-The output includes debug details with:
+Enable `Include RAG debug metadata` in the UI to inspect:
 
 - `retrievalRan`
-- `reason` (`citations-disabled`, `missing-openai-key`, `no-docs`, `no-embeddings`, `ok`)
+- `reason`
 - retrieval query
-- selected sources + similarity scores
+- selected sources and similarity scores
 
-In the UI, open **View RAG debug metadata** and **View assembled prompt** to inspect what was retrieved and injected.
+The generated output also exposes the fully assembled prompt for inspection.
 
 ## API quick reference
 
-- `GET /api/profile`: fetch profile for current cookie/header user.
-- `PUT /api/profile`: save profile.
-- `POST /api/generate`: generate structured response and optionally run RAG.
-- `GET /api/knowledge`: list user knowledge docs.
-- `POST /api/knowledge`: create user knowledge doc (`{ source, content }`).
-- `PUT /api/knowledge/:id`: update source/content; re-embeds on content change.
-- `DELETE /api/knowledge/:id`: remove document.
+- `GET /api/profile`: fetch the current user's profile
+- `PUT /api/profile`: save the current user's profile
+- `POST /api/generate`: generate a structured response and optionally run retrieval
+- `GET /api/knowledge`: list the current user's knowledge docs
+- `POST /api/knowledge`: create a knowledge doc
+- `PUT /api/knowledge/:id`: update a knowledge doc and reindex it
+- `DELETE /api/knowledge/:id`: delete a knowledge doc and remove its indexed chunks
+- `POST /api/feedback`: attach thumbs up/down feedback to a generated session
 
-## Key files
+## Verification
 
-- `app/page.tsx`: main app entry.
-- `components/assistant-app.tsx`: profile/request/output UI + knowledge management + debug views.
-- `app/api/generate/route.ts`: generation orchestration API.
-- `app/api/knowledge/route.ts`: knowledge create/list API.
-- `app/api/knowledge/[id]/route.ts`: knowledge update/delete API.
-- `lib/llm.ts`: generation + profile-aware retrieval query + optional debug metadata.
-- `lib/rag.ts`: embedding + retrieval and ranking logic.
-- `lib/langchain.ts`: chunking and OpenAI embedding setup via LangChain.
-- `lib/knowledge-store.ts`: knowledge document CRUD with Supabase fallback.
-- `lib/supabase.ts`: Supabase admin client helper.
-- `lib/store.ts`: file-backed persistence (profiles, sessions, docs).
-- `supabase/schema.sql`: pasteable Supabase schema for documents + vector search.
-- `lib/prompt.ts`: prompt template composition.
+Validated during this session with:
 
-Optional environment variables:
-
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` (default: `gpt-4o-mini`)
-- `OPENAI_EMBED_MODEL` (default: `text-embedding-3-small`)
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `RAG_CHUNK_SIZE`
-- `RAG_CHUNK_OVERLAP`
+- `npm install --legacy-peer-deps`
+- `npm run typecheck`
+- `npm run lint`
 
 ## Next steps for production
 
