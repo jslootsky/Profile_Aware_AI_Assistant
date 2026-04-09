@@ -100,11 +100,13 @@ export async function savePlannerSession(output: StoredSessionOutput) {
 }
 
 export async function updatePlannerSessionFeedback(
+  userId: string,
   sessionId: string,
   rating: "up" | "down",
   feedback?: string,
 ) {
   if (!isSupabaseConfigured()) {
+    void userId;
     return updateLocalSessionFeedback(sessionId, rating, feedback);
   }
 
@@ -115,6 +117,7 @@ export async function updatePlannerSessionFeedback(
       rating,
       feedback: feedback || null,
     })
+    .eq("user_id", userId)
     .eq("id", sessionId)
     .select("*")
     .maybeSingle();

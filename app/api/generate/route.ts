@@ -130,7 +130,7 @@
 
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
+import { getAuthedUser, isAuthenticationError } from "@/lib/auth";
 import { generateStructuredResponse } from "@/lib/llm";
 import { GenerateRequest } from "@/lib/types";
 import { DEFAULT_WEDDING_PROFILE, mergeWeddingProfile } from "@/lib/wedding-profile";
@@ -190,20 +190,20 @@ export async function POST(request: NextRequest) {
     });
 
     // Return response and set auth cookie for subsequent calls
-    const response = NextResponse.json({
+    return NextResponse.json({
       prompt: result.prompt,
       response: result.response,
       debug: payload.options.ragDebug ? result.debug : undefined,
       sessionId,
       userId: user.id,
     });
-    setAuthedCookie(response, user.id);
-    return response;
   } catch (error) {
+    const message = (error as Error).message || "Failed to generate response.";
+    const status = isAuthenticationError(error) ? 401 : 500;
     console.error("/api/generate failed", error);
     return NextResponse.json(
-      { error: "Failed to generate response." },
-      { status: 500 },
+      { error: status === 401 ? message : "Failed to generate response." },
+      { status },
     );
   }
 }

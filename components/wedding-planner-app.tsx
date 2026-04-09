@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { Session, User } from "@supabase/supabase-js";
+import { GoogleSignInLanding } from "@/components/google-sign-in-landing";
+import { UserMenu, type PlannerAuthUser } from "@/components/user-menu";
+import {
+  getSupabaseBrowserClient,
+  isSupabaseBrowserConfigured,
+} from "@/lib/supabase-browser";
 import {
   GenerateRequest,
   RagDebugInfo,
@@ -34,7 +41,33 @@ const defaultOptions: RequestOptions = {
   ragDebug: false,
 };
 
+function mapPlannerAuthUser(user: User): PlannerAuthUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name:
+      typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : undefined,
+    avatarUrl:
+      typeof user.user_metadata?.avatar_url === "string"
+        ? user.user_metadata.avatar_url
+        : undefined,
+  };
+}
+
 export function WeddingPlannerApp() {
+  const supabase = isSupabaseBrowserConfigured()
+    ? getSupabaseBrowserClient()
+    : null;
+
+  const [authReady, setAuthReady] = useState(false);
+  const [authUser, setAuthUser] = useState<PlannerAuthUser | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
   const [profile, setProfile] = useState<WeddingProfile>(DEFAULT_WEDDING_PROFILE);
   const [task, setTask] = useState("");
   const [refinement, setRefinement] = useState("");
@@ -68,31 +101,208 @@ export function WeddingPlannerApp() {
     [isOnboardingComplete, task],
   );
 
+  function resetPlannerState() {
+    setProfile(DEFAULT_WEDDING_PROFILE);
+    setTask("");
+    setRefinement("");
+    setOptions(defaultOptions);
+    setHistory([]);
+    setOutput(null);
+    setLatestPrompt("");
+    setSessionId(null);
+    setUserId(null);
+    setRagDebug(null);
+    setKnowledgeSource("");
+    setKnowledgeContent("");
+    setKnowledgeDocs([]);
+    setEditingDocId(null);
+    setKnowledgeStatus(null);
+    setError(null);
+    setSurveyStatus(null);
+    setIsSavingSurvey(false);
+    setIsEditingSurvey(false);
+    setIsGenerating(false);
+  }
+
+  function applySession(session: Session | null) {
+    if (session) {
+      setAuthError(null);
+      setIsSigningIn(false);
+    }
+    setAuthUser(session?.user ? mapPlannerAuthUser(session.user) : null);
+    setAuthToken(session?.access_token || null);
+    setAuthReady(true);
+  }
+
+  async function authorizedFetch(input: RequestInfo | URL, init?: RequestInit) {
+    if (!authToken) {
+      throw new Error("You must be signed in to use the planner.");
+    }
+
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${authToken}`);
+    if (init?.body && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    const response = await fetch(input, {
+      ...init,
+      headers,
+    });
+
+    if (response.status === 401) {
+      setAuthError("Your session expired. Please sign in again.");
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    }
+
+    return response;
+  }
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true);
+      setAuthError(
+        "Supabase authentication is not configured. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY.",
+      );
+      return;
+    }
+
+    let active = true;
+
+    supabase.auth
+      .getSession()
+      .then(({ data, error: sessionError }) => {
+        if (!active) return;
+        if (sessionError) {
+          setAuthError(sessionError.message);
+        }
+        applySession(data.session);
+      })
+      .catch((sessionError: Error) => {
+        if (!active) return;
+        setAuthError(sessionError.message);
+        setAuthReady(true);
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      applySession(session);
+      if (!session) {
+        resetPlannerState();
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!authToken) {
+      resetPlannerState();
+      return;
+    }
+
+    let active = true;
+
+    (async () => {
+      try {
+        const fetchWithToken = async (input: RequestInfo | URL) => {
+          const response = await fetch(input, {
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+          });
+
+          if (response.status === 401) {
+            setAuthError("Your session expired. Please sign in again.");
+            if (supabase) {
+              await supabase.auth.signOut();
+            }
+          }
+
+          return response;
+        };
+
+        const [profileRes, docsRes] = await Promise.all([
+          fetchWithToken("/api/profile"),
+          fetchWithToken("/api/knowledge"),
+        ]);
+
+        if (!active) return;
+
+        if (profileRes.ok) {
+          const data = (await profileRes.json()) as { profile: WeddingProfile | null };
+          setProfile(mergeWeddingProfile(data.profile));
+        }
+
+        if (docsRes.ok) {
+          const data = (await docsRes.json()) as { docs: KnowledgeDocView[] };
+          setKnowledgeDocs(data.docs);
+        }
+      } catch (loadError) {
+        if (!active) return;
+        setError(`Could not load planner data: ${(loadError as Error).message}`);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [authToken, supabase]);
+
+  async function handleGoogleSignIn() {
+    if (!supabase) return;
+    setAuthError(null);
+    setIsSigningIn(true);
+    const { error: signInError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (signInError) {
+      setAuthError(signInError.message);
+      setIsSigningIn(false);
+    }
+  }
+
+  async function handleSignOut() {
+    if (!supabase) {
+      resetPlannerState();
+      setAuthUser(null);
+      setAuthToken(null);
+      return;
+    }
+
+    setIsSigningOut(true);
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      setAuthError(signOutError.message);
+    }
+    resetPlannerState();
+    setAuthUser(null);
+    setAuthToken(null);
+    setIsSigningOut(false);
+  }
+
   async function loadKnowledgeDocs() {
-    const res = await fetch("/api/knowledge");
+    const res = await authorizedFetch("/api/knowledge");
     if (!res.ok) return;
     const data = (await res.json()) as { docs: KnowledgeDocView[] };
     setKnowledgeDocs(data.docs);
   }
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [profileRes] = await Promise.all([fetch("/api/profile"), loadKnowledgeDocs()]);
-        if (!profileRes.ok) return;
-        const data = (await profileRes.json()) as { profile: WeddingProfile | null };
-        setProfile(mergeWeddingProfile(data.profile));
-      } catch {
-        setProfile(DEFAULT_WEDDING_PROFILE);
-      }
-    })();
-  }, []);
-
   async function persistProfile(nextProfile: WeddingProfile, message?: string) {
     setIsSavingSurvey(true);
-    const res = await fetch("/api/profile", {
+    const res = await authorizedFetch("/api/profile", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(nextProfile),
     });
     setIsSavingSurvey(false);
@@ -166,9 +376,8 @@ export function WeddingPlannerApp() {
     };
 
     try {
-      const res = await fetch("/api/generate", {
+      const res = await authorizedFetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -199,8 +408,8 @@ export function WeddingPlannerApp() {
       if (refinement.trim()) {
         setRefinement("");
       }
-    } catch (e) {
-      setError(`Network error while planning: ${(e as Error).message}`);
+    } catch (submitError) {
+      setError(`Network error while planning: ${(submitError as Error).message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -212,9 +421,8 @@ export function WeddingPlannerApp() {
       return;
     }
 
-    const res = await fetch("/api/feedback", {
+    const res = await authorizedFetch("/api/feedback", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, rating, feedback: "" }),
     });
 
@@ -233,9 +441,8 @@ export function WeddingPlannerApp() {
 
     const url = editingDocId ? `/api/knowledge/${editingDocId}` : "/api/knowledge";
     const method = editingDocId ? "PUT" : "POST";
-    const res = await fetch(url, {
+    const res = await authorizedFetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         source: knowledgeSource,
         content: knowledgeContent,
@@ -257,7 +464,7 @@ export function WeddingPlannerApp() {
   }
 
   async function removeKnowledgeDoc(id: string) {
-    const res = await fetch(`/api/knowledge/${id}`, { method: "DELETE" });
+    const res = await authorizedFetch(`/api/knowledge/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const text = await res.text();
       setKnowledgeStatus(`Delete failed (${res.status}): ${text}`);
@@ -274,14 +481,40 @@ export function WeddingPlannerApp() {
     setKnowledgeStatus(`Editing ${doc.source}`);
   }
 
+  if (!authReady) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700">
+        <Spinner label="Checking session..." />
+      </main>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <GoogleSignInLanding
+        onSignIn={() => void handleGoogleSignIn()}
+        disabled={isSigningIn}
+        authConfigured={Boolean(supabase)}
+        error={authError}
+      />
+    );
+  }
+
   if (isSurveyMode) {
     return (
       <main className="min-h-screen bg-[linear-gradient(160deg,#fff7ed_0%,#fff1f2_50%,#ffffff_100%)] p-6 text-slate-900">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl items-center justify-center">
+        <div className="mx-auto max-w-6xl">
+          <AuthenticatedTopBar
+            user={authUser}
+            onSignOut={handleSignOut}
+            isSigningOut={isSigningOut}
+          />
+        </div>
+        <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-6xl items-center justify-center">
           <section
             className={`grid w-full items-start gap-6 ${
               canJumpBetweenQuestions
-                ? "lg:grid-cols-[0.62fr_1fr_0.78fr]"
+                ? "lg:grid-cols-[0.72fr_1fr_0.82fr]"
                 : "lg:grid-cols-[1.15fr_0.85fr]"
             }`}
           >
@@ -302,7 +535,7 @@ export function WeddingPlannerApp() {
                         key={question.id}
                         type="button"
                         onClick={() => void goToSurveyStep(index)}
-                        className={`w-full rounded-2xl border px-3 py-3 text-left text-sm ${
+                        className={`w-full rounded-2xl border px-4 py-3 text-left text-sm ${
                           isActive
                             ? "border-rose-300 bg-rose-50 text-rose-700"
                             : "border-slate-200 bg-white text-slate-700"
@@ -333,7 +566,7 @@ export function WeddingPlannerApp() {
                   <p className="mt-3 max-w-2xl text-base text-slate-600">
                     {isOnboardingComplete
                       ? "Update any answer and continue. Your saved profile and planner context will refresh when you finish."
-                      : "Answer one question at a time. This is the only step for now so you can focus on setting realistic constraints first."}
+                      : "Answer one question at a time. Sign-in is already complete, so this is the only thing to focus on before planning begins."}
                   </p>
                 </div>
                 <span className="rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700">
@@ -398,17 +631,15 @@ export function WeddingPlannerApp() {
                     onClick={() => void handleNextSurveyStep()}
                     className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
                   >
-                    {currentStep === weddingSurveySchema.length - 1
-                      ? "Finish"
-                      : "Next"}
+                    {currentStep === weddingSurveySchema.length - 1 ? "Finish" : "Next"}
                   </button>
                 </div>
               </div>
 
               {surveyStatus && <p className="mt-4 text-sm text-slate-600">{surveyStatus}</p>}
-              {error && (
+              {(error || authError) && (
                 <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {error}
+                  {error || authError}
                 </div>
               )}
             </div>
@@ -473,304 +704,336 @@ export function WeddingPlannerApp() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl p-6 text-slate-900">
-      <header className="rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
-          Budget Wedding Planner
-        </p>
-        <h1 className="mt-2 text-3xl font-bold">Plan a wedding that fits real constraints.</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-700">
-          Start with the survey, save your wedding profile, then refine the plan as costs,
-          guest count, and priorities change.
-        </p>
-        <div className="mt-4">
-          <button
-            onClick={() => setIsEditingSurvey(true)}
-            className="rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-medium text-rose-700"
-          >
-            Edit survey answers
-          </button>
-        </div>
-      </header>
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="mx-auto max-w-7xl p-6">
+        <AuthenticatedTopBar
+          user={authUser}
+          onSignOut={handleSignOut}
+          isSigningOut={isSigningOut}
+        />
 
-      {error && (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <section className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-          <h2 className="text-xl font-semibold">1) Planner</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Follow-ups stay grounded in your saved wedding profile.
+        <header className="mt-6 rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
+            Budget Wedding Planner
           </p>
-
-          {!isOnboardingComplete && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              Finish the survey before generating a planning response.
-            </div>
-          )}
-
-          <label className="mt-4 block text-sm font-medium">Planning request</label>
-          <textarea
-            className="mt-1 h-32 w-full rounded-xl border p-3"
-            value={task}
-            onChange={(e) => setTask(e.target.value)}
-            placeholder="Build a practical wedding plan for our budget and guest count."
-          />
-
-          <label className="mt-4 block text-sm font-medium">Refinement</label>
-          <input
-            className="mt-1 w-full rounded-xl border p-3"
-            value={refinement}
-            onChange={(e) => setRefinement(e.target.value)}
-            placeholder="Make this cheaper, adjust for 120 guests, prioritize food over decor."
-          />
-
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <SelectField
-              label="Verbosity"
-              value={options.verbosity}
-              onChange={(value) =>
-                setOptions((prev) => ({
-                  ...prev,
-                  verbosity: value as RequestOptions["verbosity"],
-                }))
-              }
-              options={["low", "medium", "high"]}
-            />
-            <SelectField
-              label="Planner mode"
-              value={options.reportType}
-              onChange={(value) =>
-                setOptions((prev) => ({
-                  ...prev,
-                  reportType: value as RequestOptions["reportType"],
-                }))
-              }
-              options={["full-plan", "budget-revision", "vendor-shortlist"]}
-            />
-            <div className="flex items-end gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={options.citeSources}
-                  onChange={(e) =>
-                    setOptions((prev) => ({ ...prev, citeSources: e.target.checked }))
-                  }
-                />
-                Use retrieval
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={Boolean(options.ragDebug)}
-                  onChange={(e) =>
-                    setOptions((prev) => ({ ...prev, ragDebug: e.target.checked }))
-                  }
-                />
-                Debug
-              </label>
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-3">
+          <h1 className="mt-2 text-3xl font-bold">Plan a wedding that fits real constraints.</h1>
+          <p className="mt-2 max-w-3xl text-sm text-slate-700">
+            You are signed in and planning against your saved wedding profile. Refine costs,
+            guest count, priorities, and vendor choices without losing context.
+          </p>
+          <div className="mt-4">
             <button
-              disabled={!canSubmit}
-              onClick={() => void submitRequest()}
-              className="rounded-xl bg-rose-600 px-4 py-2 text-white disabled:opacity-50"
+              onClick={() => setIsEditingSurvey(true)}
+              className="rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-medium text-rose-700"
             >
-              {isGenerating ? <Spinner label="Planning..." /> : "Generate plan"}
+              Edit survey answers
             </button>
-            <QuickAction
-              label="Make this cheaper"
-              onClick={() => setTask("Make this cheaper without cutting food quality.")}
-            />
-            <QuickAction
-              label="Adjust for 120 guests"
-              onClick={() => setTask("Adjust this plan for 120 guests and show tradeoffs.")}
-            />
-            <QuickAction
-              label="Prioritize food over decor"
-              onClick={() =>
-                setTask("Rebalance the plan to prioritize food over decor and explain the tradeoffs.")
-              }
-            />
           </div>
-        </div>
+        </header>
 
-        <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-          <h2 className="text-xl font-semibold">2) Local Venue / Vendor Notes</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Add local venue quotes, vendor restrictions, or family constraints for retrieval.
-          </p>
-
-          <FormField label="Source name" value={knowledgeSource} onChange={setKnowledgeSource} />
-          <label className="mt-3 block text-sm font-medium">Notes</label>
-          <textarea
-            className="mt-1 h-28 w-full rounded-xl border p-3"
-            value={knowledgeContent}
-            onChange={(e) => setKnowledgeContent(e.target.value)}
-          />
-
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => void upsertKnowledgeDoc()}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-white"
-            >
-              {editingDocId ? "Update note" : "Add note"}
-            </button>
-            {editingDocId && (
-              <button
-                onClick={() => {
-                  setEditingDocId(null);
-                  setKnowledgeSource("");
-                  setKnowledgeContent("");
-                  setKnowledgeStatus("Edit canceled.");
-                }}
-                className="rounded-xl border px-4 py-2"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-
-          {knowledgeStatus && <p className="mt-2 text-sm text-slate-600">{knowledgeStatus}</p>}
-
-          <div className="mt-4 space-y-2">
-            {knowledgeDocs.length === 0 ? (
-              <p className="text-sm text-slate-500">No local notes yet.</p>
-            ) : (
-              knowledgeDocs.map((doc) => (
-                <div key={doc.id} className="rounded-xl border border-slate-200 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{doc.source}</p>
-                      <p className="text-xs text-slate-500">
-                        {new Date(doc.createdAt).toLocaleString()} | indexed:{" "}
-                        {doc.hasEmbedding ? "yes" : "no"}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => beginEditDoc(doc)} className="rounded border px-3 py-1">
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => void removeKnowledgeDoc(doc.id)}
-                        className="rounded border px-3 py-1"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-6 rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-        <h2 className="text-xl font-semibold">3) Wedding Plan Output</h2>
-        {!output ? (
-          <p className="mt-3 text-sm text-slate-500">
-            No plan yet. Finish the survey and generate your first plan.
-          </p>
-        ) : (
-          <div className="mt-4 grid gap-6 lg:grid-cols-2">
-            <SectionCard title="Summary">
-              <p className="text-sm leading-6 text-slate-700">{output.summary}</p>
-            </SectionCard>
-            <SectionCard title="Tradeoffs">
-              <BulletList items={output.tradeoffs} />
-            </SectionCard>
-            <SectionCard title="Budget Breakdown">
-              <div className="space-y-3">
-                {output.budgetBreakdown.map((item) => (
-                  <div key={item.category} className="rounded-xl bg-slate-50 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-medium">{item.category}</p>
-                      <p className="text-sm text-slate-700">
-                        ${item.allocation.toLocaleString()} | {item.estimatedRange}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-600">{item.rationale}</p>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-            <SectionCard title="Vendor Suggestions">
-              <div className="space-y-3">
-                {output.vendorSuggestions.map((vendor) => (
-                  <div key={`${vendor.category}-${vendor.name}`} className="rounded-xl bg-slate-50 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-medium">{vendor.name}</p>
-                      <p className="text-sm text-slate-600">{vendor.priceEstimate}</p>
-                    </div>
-                    <p className="text-xs uppercase tracking-wide text-rose-700">
-                      {vendor.category} | {vendor.region}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">{vendor.whyItFits}</p>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-            <SectionCard title="Savings Options">
-              <BulletList items={output.savingsOptions} />
-            </SectionCard>
-            <SectionCard title="Next Steps">
-              <BulletList items={output.nextSteps} />
-            </SectionCard>
-            {output.citations.length > 0 && (
-              <SectionCard title="Citations">
-                <BulletList items={output.citations} />
-              </SectionCard>
-            )}
-            <SectionCard title="Revision History">
-              <BulletList items={history} emptyText="No prior refinements yet." />
-              <div className="mt-3 flex gap-2">
-                <button
-                  disabled={isGenerating}
-                  onClick={() => void submitFeedback("up")}
-                  className="rounded border px-3 py-1 disabled:opacity-50"
-                >
-                  Useful
-                </button>
-                <button
-                  disabled={isGenerating}
-                  onClick={() => void submitFeedback("down")}
-                  className="rounded border px-3 py-1 disabled:opacity-50"
-                >
-                  Needs work
-                </button>
-              </div>
-              {(userId || sessionId) && (
-                <p className="mt-3 text-xs text-slate-500">
-                  userId: {userId || "pending"} | sessionId: {sessionId || "pending"}
-                </p>
-              )}
-            </SectionCard>
-            <SectionCard title="Prompt Debug">
-              <details>
-                <summary className="cursor-pointer font-medium">View assembled prompt</summary>
-                <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
-                  {latestPrompt || "(no prompt yet)"}
-                </pre>
-              </details>
-              {ragDebug?.enabled && (
-                <details className="mt-3">
-                  <summary className="cursor-pointer font-medium">View retrieval debug</summary>
-                  <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
-                    {JSON.stringify(ragDebug, null, 2)}
-                  </pre>
-                </details>
-              )}
-            </SectionCard>
+        {(error || authError) && (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error || authError}
           </div>
         )}
-      </section>
+
+        <section className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
+            <h2 className="text-xl font-semibold">1) Planner</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Follow-ups stay grounded in your saved wedding profile.
+            </p>
+
+            {!isOnboardingComplete && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Finish the survey before generating a planning response.
+              </div>
+            )}
+
+            <label className="mt-4 block text-sm font-medium">Planning request</label>
+            <textarea
+              className="mt-1 h-32 w-full rounded-xl border p-3"
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+              placeholder="Build a practical wedding plan for our budget and guest count."
+            />
+
+            <label className="mt-4 block text-sm font-medium">Refinement</label>
+            <input
+              className="mt-1 w-full rounded-xl border p-3"
+              value={refinement}
+              onChange={(e) => setRefinement(e.target.value)}
+              placeholder="Make this cheaper, adjust for 120 guests, prioritize food over decor."
+            />
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <SelectField
+                label="Verbosity"
+                value={options.verbosity}
+                onChange={(value) =>
+                  setOptions((prev) => ({
+                    ...prev,
+                    verbosity: value as RequestOptions["verbosity"],
+                  }))
+                }
+                options={["low", "medium", "high"]}
+              />
+              <SelectField
+                label="Planner mode"
+                value={options.reportType}
+                onChange={(value) =>
+                  setOptions((prev) => ({
+                    ...prev,
+                    reportType: value as RequestOptions["reportType"],
+                  }))
+                }
+                options={["full-plan", "budget-revision", "vendor-shortlist"]}
+              />
+              <div className="flex items-end gap-4 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={options.citeSources}
+                    onChange={(e) =>
+                      setOptions((prev) => ({ ...prev, citeSources: e.target.checked }))
+                    }
+                  />
+                  Use retrieval
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(options.ragDebug)}
+                    onChange={(e) =>
+                      setOptions((prev) => ({ ...prev, ragDebug: e.target.checked }))
+                    }
+                  />
+                  Debug
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                disabled={!canSubmit}
+                onClick={() => void submitRequest()}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-white disabled:opacity-50"
+              >
+                {isGenerating ? <Spinner label="Planning..." /> : "Generate plan"}
+              </button>
+              <QuickAction
+                label="Make this cheaper"
+                onClick={() => setTask("Make this cheaper without cutting food quality.")}
+              />
+              <QuickAction
+                label="Adjust for 120 guests"
+                onClick={() => setTask("Adjust this plan for 120 guests and show tradeoffs.")}
+              />
+              <QuickAction
+                label="Prioritize food over decor"
+                onClick={() =>
+                  setTask("Rebalance the plan to prioritize food over decor and explain the tradeoffs.")
+                }
+              />
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
+            <h2 className="text-xl font-semibold">2) Local Venue / Vendor Notes</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Add local venue quotes, vendor restrictions, or family constraints for retrieval.
+            </p>
+
+            <FormField label="Source name" value={knowledgeSource} onChange={setKnowledgeSource} />
+            <label className="mt-3 block text-sm font-medium">Notes</label>
+            <textarea
+              className="mt-1 h-28 w-full rounded-xl border p-3"
+              value={knowledgeContent}
+              onChange={(e) => setKnowledgeContent(e.target.value)}
+            />
+
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => void upsertKnowledgeDoc()}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-white"
+              >
+                {editingDocId ? "Update note" : "Add note"}
+              </button>
+              {editingDocId && (
+                <button
+                  onClick={() => {
+                    setEditingDocId(null);
+                    setKnowledgeSource("");
+                    setKnowledgeContent("");
+                    setKnowledgeStatus("Edit canceled.");
+                  }}
+                  className="rounded-xl border px-4 py-2"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            {knowledgeStatus && <p className="mt-2 text-sm text-slate-600">{knowledgeStatus}</p>}
+
+            <div className="mt-4 space-y-2">
+              {knowledgeDocs.length === 0 ? (
+                <p className="text-sm text-slate-500">No local notes yet.</p>
+              ) : (
+                knowledgeDocs.map((doc) => (
+                  <div key={doc.id} className="rounded-xl border border-slate-200 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{doc.source}</p>
+                        <p className="text-xs text-slate-500">
+                          {new Date(doc.createdAt).toLocaleString()} | indexed:{" "}
+                          {doc.hasEmbedding ? "yes" : "no"}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => beginEditDoc(doc)} className="rounded border px-3 py-1">
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => void removeKnowledgeDoc(doc.id)}
+                          className="rounded border px-3 py-1"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
+          <h2 className="text-xl font-semibold">3) Wedding Plan Output</h2>
+          {!output ? (
+            <p className="mt-3 text-sm text-slate-500">
+              No plan yet. Finish the survey and generate your first plan.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-6 lg:grid-cols-2">
+              <SectionCard title="Summary">
+                <p className="text-sm leading-6 text-slate-700">{output.summary}</p>
+              </SectionCard>
+              <SectionCard title="Tradeoffs">
+                <BulletList items={output.tradeoffs} />
+              </SectionCard>
+              <SectionCard title="Budget Breakdown">
+                <div className="space-y-3">
+                  {output.budgetBreakdown.map((item) => (
+                    <div key={item.category} className="rounded-xl bg-slate-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium">{item.category}</p>
+                        <p className="text-sm text-slate-700">
+                          ${item.allocation.toLocaleString()} | {item.estimatedRange}
+                        </p>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">{item.rationale}</p>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+              <SectionCard title="Vendor Suggestions">
+                <div className="space-y-3">
+                  {output.vendorSuggestions.map((vendor) => (
+                    <div key={`${vendor.category}-${vendor.name}`} className="rounded-xl bg-slate-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium">{vendor.name}</p>
+                        <p className="text-sm text-slate-600">{vendor.priceEstimate}</p>
+                      </div>
+                      <p className="text-xs uppercase tracking-wide text-rose-700">
+                        {vendor.category} | {vendor.region}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">{vendor.whyItFits}</p>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+              <SectionCard title="Savings Options">
+                <BulletList items={output.savingsOptions} />
+              </SectionCard>
+              <SectionCard title="Next Steps">
+                <BulletList items={output.nextSteps} />
+              </SectionCard>
+              {output.citations.length > 0 && (
+                <SectionCard title="Citations">
+                  <BulletList items={output.citations} />
+                </SectionCard>
+              )}
+              <SectionCard title="Revision History">
+                <BulletList items={history} emptyText="No prior refinements yet." />
+                <div className="mt-3 flex gap-2">
+                  <button
+                    disabled={isGenerating}
+                    onClick={() => void submitFeedback("up")}
+                    className="rounded border px-3 py-1 disabled:opacity-50"
+                  >
+                    Useful
+                  </button>
+                  <button
+                    disabled={isGenerating}
+                    onClick={() => void submitFeedback("down")}
+                    className="rounded border px-3 py-1 disabled:opacity-50"
+                  >
+                    Needs work
+                  </button>
+                </div>
+                {(userId || sessionId) && (
+                  <p className="mt-3 text-xs text-slate-500">
+                    userId: {userId || "pending"} | sessionId: {sessionId || "pending"}
+                  </p>
+                )}
+              </SectionCard>
+              <SectionCard title="Prompt Debug">
+                <details>
+                  <summary className="cursor-pointer font-medium">View assembled prompt</summary>
+                  <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
+                    {latestPrompt || "(no prompt yet)"}
+                  </pre>
+                </details>
+                {ragDebug?.enabled && (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer font-medium">View retrieval debug</summary>
+                    <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
+                      {JSON.stringify(ragDebug, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </SectionCard>
+            </div>
+          )}
+        </section>
+      </div>
     </main>
+  );
+}
+
+function AuthenticatedTopBar({
+  user,
+  onSignOut,
+  isSigningOut,
+}: {
+  user: PlannerAuthUser;
+  onSignOut: () => void;
+  isSigningOut: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-rose-600">
+          Signed in
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          Planner data, survey progress, and retrieval notes are scoped to your account.
+        </p>
+      </div>
+      <UserMenu user={user} onSignOut={onSignOut} isSigningOut={isSigningOut} />
+    </div>
   );
 }
 
@@ -1031,7 +1294,7 @@ function SectionCard({
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 p-4">

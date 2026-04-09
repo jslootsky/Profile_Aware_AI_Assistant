@@ -1,83 +1,63 @@
-/**
- * =============================================================================
- * Lightweight Auth Helper (lib/auth.ts)
- * =============================================================================
- *
- * Purpose:
- * --------
- * This module implements a *very simple* “user identity” mechanism for a Next.js
- * app without passwords or real authentication.
- *
- * It does two jobs:
- *   1) Identify the current user for an incoming request (getAuthedUser)
- *   2) Persist that user id for future requests via a cookie (setAuthedCookie)
- *
- * It relies on the file-backed store (lib/store.ts) to:
- *   - look up an existing user by id, or
- *   - create a new user if no id exists yet
- *
- * ---------------------------------------------------------------------------
- * Dependencies:
- * ---------------------------------------------------------------------------
- * - NextRequest / NextResponse (next/server)
- *     → Next.js “Route Handler” request/response types
- *     → Provides access to cookies and headers
- *
- * - getOrCreateUser (./store)
- *     → Reads/writes the JSON store
- *     → Guarantees a StoredUser exists for a given id (or generates one)
- *
- * ---------------------------------------------------------------------------
- * Exported API:
- * ---------------------------------------------------------------------------
- * getAuthedUser(request: NextRequest): Promise<StoredUser>
- *   - Attempts to find an existing user id from the request:
- *       1) Cookie:  "paai_uid"
- *       2) Header:  "x-user-id" (fallback / API testing)
- *   - Passes the id (or undefined) into getOrCreateUser():
- *       - If id exists and matches a stored user → returns that user
- *       - If id is missing → creates a brand new user with a generated UUID
- *   - Output:
- *       StoredUser (always)
- *
- * setAuthedCookie(response: NextResponse, userId: string): void
- *   - Sets the "paai_uid" cookie on the outgoing response so the browser will
- *     automatically include it on future requests.
- *   - Cookie options:
- *       - httpOnly: false     (JS on the client *can* read it; less secure)
- *       - sameSite: "lax"     (helps reduce CSRF in common cases)
- *       - path: "/"           (cookie is sent for the whole site)
- *       - maxAge: 1 year      (persist user id long-term)
- *   - Output:
- *       void (mutates the response by adding a Set-Cookie header)
- *
- * ---------------------------------------------------------------------------
- * Design Notes / Security:
- * ---------------------------------------------------------------------------
- * - This is NOT real authentication (no login, no verification).
- * - Anyone who can set/guess a user id could impersonate that user.
- * - If you want stronger security, set httpOnly: true and sign/encrypt the id
- *   (or use NextAuth / JWT sessions / OAuth).
- *
- * =============================================================================
- */
+import { NextRequest } from "next/server";
+import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase";
 
-import { NextRequest, NextResponse } from "next/server";
-import { getOrCreateUser } from "./store";
-
-export async function getAuthedUser(request: NextRequest) {
-  const incomingId =
-    request.cookies.get("paai_uid")?.value ||
-    request.headers.get("x-user-id") ||
-    undefined;
-  return getOrCreateUser(incomingId);
+export interface AuthedUser {
+  id: string;
+  email?: string;
+  name?: string;
+  avatarUrl?: string;
 }
 
-export function setAuthedCookie(response: NextResponse, userId: string) {
-  response.cookies.set("paai_uid", userId, {
-    httpOnly: false,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-  });
+export function isAuthenticationError(error: unknown) {
+  const message = (error as Error)?.message || "";
+  return (
+    message === "Missing bearer token." ||
+    message === "Invalid or expired session." ||
+    message.includes("Supabase auth is not configured")
+  );
+}
+
+function getBearerToken(request: NextRequest) {
+  const authorization = request.headers.get("authorization") || "";
+  const [scheme, token] = authorization.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+  return token;
+}
+
+export async function getAuthedUser(request: NextRequest): Promise<AuthedUser> {
+  if (!isSupabaseConfigured()) {
+    throw new Error(
+      "Supabase auth is not configured. Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY.",
+    );
+  }
+
+  const token = getBearerToken(request);
+  if (!token) {
+    throw new Error("Missing bearer token.");
+  }
+
+  const supabase = getSupabaseAdmin();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    throw new Error("Invalid or expired session.");
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    name:
+      typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : undefined,
+    avatarUrl:
+      typeof user.user_metadata?.avatar_url === "string"
+        ? user.user_metadata.avatar_url
+        : undefined,
+  };
 }
