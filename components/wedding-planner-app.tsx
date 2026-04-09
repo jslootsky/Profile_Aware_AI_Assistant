@@ -54,11 +54,13 @@ export function WeddingPlannerApp() {
   const [error, setError] = useState<string | null>(null);
   const [surveyStatus, setSurveyStatus] = useState<string | null>(null);
   const [isSavingSurvey, setIsSavingSurvey] = useState(false);
+  const [isEditingSurvey, setIsEditingSurvey] = useState(false);
 
   const currentStep = Math.min(profile.surveyStep, weddingSurveySchema.length - 1);
   const currentQuestion = weddingSurveySchema[currentStep];
   const isOnboardingComplete =
     isWeddingProfileComplete(profile) && profile.onboardingComplete;
+  const isSurveyMode = !isOnboardingComplete || isEditingSurvey;
   const budgetSnapshot = useMemo(() => calculateWeddingBudget(profile), [profile]);
   const canSubmit = useMemo(
     () => isOnboardingComplete && task.trim().length > 0,
@@ -142,6 +144,7 @@ export function WeddingPlannerApp() {
         fullValidation.profile,
         "Survey complete. Wedding planning is ready.",
       );
+      setIsEditingSurvey(false);
       return;
     }
 
@@ -270,6 +273,164 @@ export function WeddingPlannerApp() {
     setKnowledgeStatus(`Editing ${doc.source}`);
   }
 
+  if (isSurveyMode) {
+    return (
+      <main className="min-h-screen bg-[linear-gradient(160deg,#fff7ed_0%,#fff1f2_50%,#ffffff_100%)] p-6 text-slate-900">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl items-center justify-center">
+          <section className="grid w-full gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="rounded-[2rem] bg-white p-8 shadow-xl ring-1 ring-rose-100">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-rose-600">
+                    Budget Wedding Planner
+                  </p>
+                  <h1 className="mt-3 text-4xl font-semibold leading-tight">
+                    {isOnboardingComplete
+                      ? "Edit your wedding survey"
+                      : "Start with the wedding survey"}
+                  </h1>
+                  <p className="mt-3 max-w-2xl text-base text-slate-600">
+                    {isOnboardingComplete
+                      ? "Update any answer and continue. Your saved profile and planner context will refresh when you finish."
+                      : "Answer one question at a time. This is the only step for now so you can focus on setting realistic constraints first."}
+                  </p>
+                </div>
+                <span className="rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700">
+                  Step {currentStep + 1} of {weddingSurveySchema.length}
+                </span>
+              </div>
+
+              <div className="mt-6">
+                <ProgressBar current={currentStep + 1} total={weddingSurveySchema.length} />
+              </div>
+
+              <div className="mt-8 rounded-[1.5rem] bg-slate-50 p-6">
+                <SurveyStepCard
+                  question={currentQuestion}
+                  value={profile[currentQuestion.id]}
+                  onChange={(value) =>
+                    setProfile((prev) =>
+                      mergeWeddingProfile({
+                        ...prev,
+                        [currentQuestion.id]: value,
+                      }),
+                    )
+                  }
+                />
+              </div>
+
+              <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-3 rounded-2xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200 backdrop-blur">
+                <button
+                  disabled={currentStep === 0 || isSavingSurvey}
+                  onClick={() => void goToSurveyStep(currentStep - 1)}
+                  className="rounded-xl border px-4 py-2 disabled:opacity-50"
+                >
+                  Back
+                </button>
+                <div className="flex gap-3">
+                  {isOnboardingComplete && isEditingSurvey && (
+                    <button
+                      disabled={isSavingSurvey}
+                      onClick={() => setIsEditingSurvey(false)}
+                      className="rounded-xl border px-4 py-2 disabled:opacity-50"
+                    >
+                      Exit edit mode
+                    </button>
+                  )}
+                  <button
+                    disabled={isSavingSurvey}
+                    onClick={() =>
+                      void persistProfile(
+                        mergeWeddingProfile({
+                          ...profile,
+                          onboardingComplete: false,
+                        }),
+                        "Survey progress saved.",
+                      )
+                    }
+                    className="rounded-xl border px-4 py-2 disabled:opacity-50"
+                  >
+                    Save progress
+                  </button>
+                  <button
+                    disabled={isSavingSurvey}
+                    onClick={() => void handleNextSurveyStep()}
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+                  >
+                    {currentStep === weddingSurveySchema.length - 1
+                      ? "Finish survey"
+                      : "Next question"}
+                  </button>
+                </div>
+              </div>
+
+              {surveyStatus && <p className="mt-4 text-sm text-slate-600">{surveyStatus}</p>}
+              {error && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            <aside className="rounded-[2rem] bg-slate-950 p-8 text-white shadow-xl">
+              <h2 className="text-2xl font-semibold">Live planning snapshot</h2>
+              <p className="mt-3 text-sm text-slate-300">
+                These numbers update as you answer the survey so you can see how your constraints shape the plan.
+              </p>
+              <div className="mt-6 grid gap-4 text-sm">
+                <InfoRow
+                  label="Budget"
+                  value={
+                    profile.totalBudget > 0
+                      ? `$${profile.totalBudget.toLocaleString()}`
+                      : "Not set"
+                  }
+                />
+                <InfoRow
+                  label="Guests"
+                  value={profile.guestCount > 0 ? String(profile.guestCount) : "Not set"}
+                />
+                <InfoRow
+                  label="Budget / Guest"
+                  value={
+                    profile.totalBudget > 0 && profile.guestCount > 0
+                      ? `$${budgetSnapshot.budgetPerGuest}`
+                      : "Not set"
+                  }
+                />
+                <InfoRow label="Location" value={profile.location || "Not set"} />
+                <InfoRow label="Season" value={profile.season || "Not set"} />
+                <InfoRow label="Style" value={profile.style || "Not set"} />
+              </div>
+              <div className="mt-6 rounded-2xl bg-slate-900 p-4">
+                <h3 className="font-medium">Protected priorities</h3>
+                <p className="mt-2 text-sm text-slate-300">
+                  {profile.priorities.map(formatPriorityLabel).join(", ") || "None"}
+                </p>
+              </div>
+              <div className="mt-6 space-y-3">
+                {budgetSnapshot.tradeoffs.length > 0 ? (
+                  budgetSnapshot.tradeoffs.map((item, index) => (
+                    <div
+                      key={index}
+                      className="rounded-xl bg-slate-900 p-3 text-sm text-slate-200"
+                    >
+                      {item}
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl bg-slate-900 p-3 text-sm text-slate-300">
+                    Tradeoffs will appear as your budget and guest count become clearer.
+                  </div>
+                )}
+              </div>
+            </aside>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-7xl p-6 text-slate-900">
       <header className="rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
@@ -281,6 +442,14 @@ export function WeddingPlannerApp() {
           Start with the survey, save your wedding profile, then refine the plan as costs,
           guest count, and priorities change.
         </p>
+        <div className="mt-4">
+          <button
+            onClick={() => setIsEditingSurvey(true)}
+            className="rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-medium text-rose-700"
+          >
+            Edit survey answers
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -289,131 +458,9 @@ export function WeddingPlannerApp() {
         </div>
       )}
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold">1) Survey Onboarding</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Answer one question at a time. You can go back, and your progress is saved.
-              </p>
-            </div>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
-                isOnboardingComplete
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-amber-100 text-amber-700"
-              }`}
-            >
-              Step {currentStep + 1} of {weddingSurveySchema.length}
-            </span>
-          </div>
-
-          <div className="mt-5">
-            <ProgressBar current={currentStep + 1} total={weddingSurveySchema.length} />
-          </div>
-
-          <div className="mt-6 rounded-2xl bg-slate-50 p-5">
-            <SurveyStepCard
-              question={currentQuestion}
-              value={profile[currentQuestion.id]}
-              onChange={(value) =>
-                setProfile((prev) =>
-                  mergeWeddingProfile({
-                    ...prev,
-                    [currentQuestion.id]: value,
-                  }),
-                )
-              }
-            />
-          </div>
-
-          <div className="sticky bottom-4 mt-5 flex items-center justify-between gap-3 rounded-2xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200 backdrop-blur">
-            <button
-              disabled={currentStep === 0 || isSavingSurvey}
-              onClick={() => void goToSurveyStep(currentStep - 1)}
-              className="rounded-xl border px-4 py-2 disabled:opacity-50"
-            >
-              Back
-            </button>
-            <div className="flex gap-3">
-              <button
-                disabled={isSavingSurvey}
-                onClick={() =>
-                  void persistProfile(
-                    mergeWeddingProfile({
-                      ...profile,
-                      onboardingComplete: false,
-                    }),
-                    "Survey progress saved.",
-                  )
-                }
-                className="rounded-xl border px-4 py-2 disabled:opacity-50"
-              >
-                Save progress
-              </button>
-              <button
-                disabled={isSavingSurvey}
-                onClick={() => void handleNextSurveyStep()}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
-              >
-                {currentStep === weddingSurveySchema.length - 1
-                  ? "Finish survey"
-                  : "Next question"}
-              </button>
-            </div>
-          </div>
-
-          {surveyStatus && <p className="mt-3 text-sm text-slate-600">{surveyStatus}</p>}
-        </div>
-
-        <aside className="rounded-3xl bg-slate-950 p-5 text-white shadow">
-          <h2 className="text-xl font-semibold">Current Planning Snapshot</h2>
-          <p className="mt-2 text-sm text-slate-300">
-            The calculator updates live as you answer the survey.
-          </p>
-          <div className="mt-4 grid gap-3 text-sm">
-            <InfoRow
-              label="Budget"
-              value={
-                profile.totalBudget > 0
-                  ? `$${profile.totalBudget.toLocaleString()}`
-                  : "Not set"
-              }
-            />
-            <InfoRow
-              label="Guests"
-              value={profile.guestCount > 0 ? String(profile.guestCount) : "Not set"}
-            />
-            <InfoRow
-              label="Budget / Guest"
-              value={profile.totalBudget > 0 && profile.guestCount > 0
-                ? `$${budgetSnapshot.budgetPerGuest}`
-                : "Not set"}
-            />
-            <InfoRow label="Location" value={profile.location || "Not set"} />
-            <InfoRow label="Season" value={profile.season || "Not set"} />
-            <InfoRow label="Style" value={profile.style || "Not set"} />
-          </div>
-          <div className="mt-5 rounded-2xl bg-slate-900 p-4">
-            <h3 className="font-medium">Protected priorities</h3>
-            <p className="mt-2 text-sm text-slate-300">
-              {profile.priorities.map(formatPriorityLabel).join(", ") || "None"}
-            </p>
-          </div>
-          <div className="mt-4 space-y-3">
-            {budgetSnapshot.tradeoffs.map((item, index) => (
-              <div key={index} className="rounded-xl bg-slate-900 p-3 text-sm text-slate-200">
-                {item}
-              </div>
-            ))}
-          </div>
-        </aside>
-      </section>
-
       <section className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-          <h2 className="text-xl font-semibold">2) Planner</h2>
+          <h2 className="text-xl font-semibold">1) Planner</h2>
           <p className="mt-1 text-sm text-slate-600">
             Follow-ups stay grounded in your saved wedding profile.
           </p>
@@ -513,7 +560,7 @@ export function WeddingPlannerApp() {
         </div>
 
         <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-          <h2 className="text-xl font-semibold">3) Local Venue / Vendor Notes</h2>
+          <h2 className="text-xl font-semibold">2) Local Venue / Vendor Notes</h2>
           <p className="mt-1 text-sm text-slate-600">
             Add local venue quotes, vendor restrictions, or family constraints for retrieval.
           </p>
@@ -584,7 +631,7 @@ export function WeddingPlannerApp() {
       </section>
 
       <section className="mt-6 rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-        <h2 className="text-xl font-semibold">4) Wedding Plan Output</h2>
+        <h2 className="text-xl font-semibold">3) Wedding Plan Output</h2>
         {!output ? (
           <p className="mt-3 text-sm text-slate-500">
             No plan yet. Finish the survey and generate your first plan.
