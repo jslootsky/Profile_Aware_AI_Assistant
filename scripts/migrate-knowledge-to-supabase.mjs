@@ -229,35 +229,82 @@ async function main() {
   let indexed = 0;
   let chunkTotal = 0;
   let reusedLocalEmbeddings = 0;
+  const failures = [];
 
   for (const doc of docs) {
-    const existingChunks = chunksByDocumentId.get(doc.id) || [];
-    const result =
-      existingChunks.length > 0
-        ? await migrateExistingChunks({
-            supabase,
-            doc,
-            chunks: existingChunks,
-          })
-        : await migrateDocument({
-            supabase,
-            vectorStore,
-            splitter,
-            doc,
-          });
+    try {
+      const now = doc.createdAt || new Date().toISOString();
+      const payload = {
+        id: doc.id,
+        user_id: doc.userId,
+        source: doc.source,
+        content: doc.content,
+        content_hash: sha256(doc.content),
+        created_at: now,
+        updated_at: now,
+      };
 
-    migrated += 1;
-    chunkTotal += result.chunkCount;
-    if (result.indexed) {
-      indexed += 1;
-    }
-    if (existingChunks.length > 0) {
-      reusedLocalEmbeddings += 1;
-    }
+      const { error: documentError } = await supabase
+        .from("knowledge_documents")
+        .upsert(payload, { onConflict: "id" });
 
-    console.log(
-      `Migrated document ${migrated}/${docs.length}: ${doc.source} (${result.chunkCount} chunks${existingChunks.length > 0 ? ", reused local embeddings" : ""})`,
-    );
+      if (documentError) {
+        throw documentError;
+      }
+
+      migrated += 1;
+
+      const existingChunks = chunksByDocumentId.get(doc.id) || [];
+      let result = { chunkCount: 0, indexed: false };
+
+      if (existingChunks.length > 0) {
+        const { error: deleteChunkError } = await supabase
+          .from("knowledge_chunks")
+          .delete()
+          .contains("metadata", { document_id: doc.id });
+
+        if (deleteChunkError) {
+          throw deleteChunkError;
+        }
+
+        result = await migrateExistingChunks({
+          supabase,
+          doc,
+          chunks: existingChunks,
+        });
+      } else if (vectorStore && splitter) {
+        result = await migrateDocument({
+          supabase,
+          vectorStore,
+          splitter,
+          doc,
+        });
+      }
+
+      chunkTotal += result.chunkCount;
+      if (result.indexed) {
+        indexed += 1;
+      }
+      if (existingChunks.length > 0) {
+        reusedLocalEmbeddings += 1;
+      }
+
+      console.log(
+        `Migrated document ${migrated}/${docs.length}: ${doc.source} (${result.chunkCount} chunks${existingChunks.length > 0 ? ", reused local embeddings" : result.indexed ? ", freshly indexed" : ", document only"})`,
+      );
+    } catch (error) {
+      failures.push({
+        id: doc.id,
+        source: doc.source,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      console.warn(
+        `Skipped chunk indexing for "${doc.source}" and continued: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   console.log("");
@@ -265,6 +312,15 @@ async function main() {
   console.log(`Documents indexed: ${indexed}`);
   console.log(`Chunks written: ${chunkTotal}`);
   console.log(`Documents using local embeddings: ${reusedLocalEmbeddings}`);
+  console.log(`Documents with migration/indexing errors: ${failures.length}`);
+
+  if (failures.length > 0) {
+    console.log("");
+    console.log("Failures:");
+    for (const failure of failures) {
+      console.log(`- ${failure.source} (${failure.id}): ${failure.error}`);
+    }
+  }
 }
 
 main().catch((error) => {
