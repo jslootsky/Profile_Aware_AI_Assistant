@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   addKnowledgeDoc as addFileKnowledgeDoc,
   deleteKnowledgeDoc as deleteFileKnowledgeDoc,
@@ -36,12 +37,13 @@ function mapKnowledgeRow(row: KnowledgeRow): KnowledgeDocument {
 
 export async function addKnowledgeDocument(
   doc: Omit<KnowledgeDocument, "id" | "createdAt">,
+  supabaseClient?: SupabaseClient,
 ) {
   if (!isSupabaseConfigured()) {
     return addFileKnowledgeDoc(doc);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const now = new Date().toISOString();
   const payload = {
     id: crypto.randomUUID(),
@@ -66,12 +68,15 @@ export async function addKnowledgeDocument(
   return mapKnowledgeRow(data as KnowledgeRow);
 }
 
-export async function listKnowledgeDocuments(userId: string) {
+export async function listKnowledgeDocuments(
+  userId: string,
+  supabaseClient?: SupabaseClient,
+) {
   if (!isSupabaseConfigured()) {
     return listFileKnowledgeDocuments(userId);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { data, error } = await supabase
     .from("knowledge_documents")
     .select("*")
@@ -85,12 +90,15 @@ export async function listKnowledgeDocuments(userId: string) {
   return ((data ?? []) as KnowledgeRow[]).map(mapKnowledgeRow);
 }
 
-export async function getKnowledgeDocumentById(id: string) {
+export async function getKnowledgeDocumentById(
+  id: string,
+  supabaseClient?: SupabaseClient,
+) {
   if (!isSupabaseConfigured()) {
     return getFileKnowledgeDocumentById(id);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { data, error } = await supabase
     .from("knowledge_documents")
     .select("*")
@@ -107,12 +115,13 @@ export async function getKnowledgeDocumentById(id: string) {
 export async function updateKnowledgeDocument(
   id: string,
   updates: Pick<KnowledgeDocument, "source" | "content" | "embedding">,
+  supabaseClient?: SupabaseClient,
 ) {
   if (!isSupabaseConfigured()) {
     return updateFileKnowledgeDoc(id, updates);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { data, error } = await supabase
     .from("knowledge_documents")
     .update({
@@ -132,12 +141,15 @@ export async function updateKnowledgeDocument(
   return data ? mapKnowledgeRow(data as KnowledgeRow) : null;
 }
 
-export async function deleteKnowledgeDocument(id: string) {
+export async function deleteKnowledgeDocument(
+  id: string,
+  supabaseClient?: SupabaseClient,
+) {
   if (!isSupabaseConfigured()) {
     return deleteFileKnowledgeDoc(id);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { error } = await supabase.from("knowledge_documents").delete().eq("id", id);
 
   if (error) {

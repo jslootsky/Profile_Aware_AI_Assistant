@@ -4,20 +4,34 @@ let supabaseAdmin: SupabaseClient | null = null;
 
 export function isSupabaseConfigured() {
   return Boolean(
-    process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+    getSupabaseUrl() && process.env.SUPABASE_SERVICE_ROLE_KEY,
   );
+}
+
+export function getSupabaseUrl() {
+  return process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+}
+
+export function isSupabaseBrowserConfigured() {
+  return Boolean(
+    getSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+}
+
+export function getSupabaseAnonKey() {
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 }
 
 export function getSupabaseAdmin() {
   if (!isSupabaseConfigured()) {
     throw new Error(
-      "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
     );
   }
 
   if (!supabaseAdmin) {
     supabaseAdmin = createClient(
-      process.env.SUPABASE_URL as string,
+      getSupabaseUrl(),
       process.env.SUPABASE_SERVICE_ROLE_KEY as string,
       {
         auth: {
@@ -29,4 +43,24 @@ export function getSupabaseAdmin() {
   }
 
   return supabaseAdmin;
+}
+
+export function getSupabaseUserClient(accessToken: string) {
+  if (!getSupabaseUrl() || !getSupabaseAnonKey()) {
+    throw new Error(
+      "Supabase browser auth is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    );
+  }
+
+  return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });
 }

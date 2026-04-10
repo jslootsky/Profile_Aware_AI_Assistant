@@ -2,16 +2,30 @@ create extension if not exists vector;
 create extension if not exists pgcrypto;
 
 create table if not exists public.wedding_profiles (
-  user_id text primary key,
+  user_id uuid primary key references auth.users (id) on delete cascade,
   profile_json jsonb not null,
   updated_at timestamptz not null default now()
 );
 
-alter table public.wedding_profiles disable row level security;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'wedding_profiles'
+      and column_name = 'user_id'
+      and data_type <> 'uuid'
+  ) then
+    alter table public.wedding_profiles
+      alter column user_id type uuid
+      using nullif(user_id::text, '')::uuid;
+  end if;
+end $$;
 
 create table if not exists public.planner_sessions (
   id uuid primary key default gen_random_uuid(),
-  user_id text not null,
+  user_id uuid not null references auth.users (id) on delete cascade,
   task text not null,
   refinement text,
   report_json jsonb not null,
@@ -20,14 +34,28 @@ create table if not exists public.planner_sessions (
   created_at timestamptz not null default now()
 );
 
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'planner_sessions'
+      and column_name = 'user_id'
+      and data_type <> 'uuid'
+  ) then
+    alter table public.planner_sessions
+      alter column user_id type uuid
+      using nullif(user_id::text, '')::uuid;
+  end if;
+end $$;
+
 create index if not exists planner_sessions_user_id_idx
   on public.planner_sessions (user_id);
 
-alter table public.planner_sessions disable row level security;
-
 create table if not exists public.knowledge_documents (
   id uuid primary key default gen_random_uuid(),
-  user_id text not null,
+  user_id uuid not null references auth.users (id) on delete cascade,
   source text not null,
   content text not null,
   content_hash text not null,
@@ -35,10 +63,24 @@ create table if not exists public.knowledge_documents (
   updated_at timestamptz not null default now()
 );
 
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'knowledge_documents'
+      and column_name = 'user_id'
+      and data_type <> 'uuid'
+  ) then
+    alter table public.knowledge_documents
+      alter column user_id type uuid
+      using nullif(user_id::text, '')::uuid;
+  end if;
+end $$;
+
 create index if not exists knowledge_documents_user_id_idx
   on public.knowledge_documents (user_id);
-
-alter table public.knowledge_documents disable row level security;
 
 create table if not exists public.knowledge_chunks (
   id uuid primary key default gen_random_uuid(),
@@ -55,7 +97,66 @@ create index if not exists knowledge_chunks_embedding_idx
   using ivfflat (embedding vector_cosine_ops)
   with (lists = 100);
 
-alter table public.knowledge_chunks disable row level security;
+alter table public.wedding_profiles enable row level security;
+alter table public.planner_sessions enable row level security;
+alter table public.knowledge_documents enable row level security;
+alter table public.knowledge_chunks enable row level security;
+
+drop policy if exists "wedding_profiles_owner_select" on public.wedding_profiles;
+create policy "wedding_profiles_owner_select"
+  on public.wedding_profiles for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "wedding_profiles_owner_write" on public.wedding_profiles;
+create policy "wedding_profiles_owner_write"
+  on public.wedding_profiles for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "planner_sessions_owner_select" on public.planner_sessions;
+create policy "planner_sessions_owner_select"
+  on public.planner_sessions for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "planner_sessions_owner_write" on public.planner_sessions;
+create policy "planner_sessions_owner_write"
+  on public.planner_sessions for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "knowledge_documents_owner_select" on public.knowledge_documents;
+create policy "knowledge_documents_owner_select"
+  on public.knowledge_documents for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "knowledge_documents_owner_write" on public.knowledge_documents;
+create policy "knowledge_documents_owner_write"
+  on public.knowledge_documents for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "knowledge_chunks_owner_select" on public.knowledge_chunks;
+create policy "knowledge_chunks_owner_select"
+  on public.knowledge_chunks for select
+  using (
+    metadata ? 'user_id'
+    and nullif(metadata ->> 'user_id', '') is not null
+    and (metadata ->> 'user_id') = auth.uid()::text
+  );
+
+drop policy if exists "knowledge_chunks_owner_write" on public.knowledge_chunks;
+create policy "knowledge_chunks_owner_write"
+  on public.knowledge_chunks for all
+  using (
+    metadata ? 'user_id'
+    and nullif(metadata ->> 'user_id', '') is not null
+    and (metadata ->> 'user_id') = auth.uid()::text
+  )
+  with check (
+    metadata ? 'user_id'
+    and nullif(metadata ->> 'user_id', '') is not null
+    and (metadata ->> 'user_id') = auth.uid()::text
+  );
 
 create or replace function public.match_knowledge_chunks (
   query_embedding vector(1536),

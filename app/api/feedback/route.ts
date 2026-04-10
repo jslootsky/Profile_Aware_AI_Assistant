@@ -69,21 +69,40 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthedUser, getBearerToken, isAuthenticationError } from "@/lib/auth";
 import { updatePlannerSessionFeedback } from "@/lib/planner-store";
+import { getSupabaseUserClient } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
-  const { sessionId, rating, feedback } = (await request.json()) as {
-    sessionId: string;
-    rating: "up" | "down";
-    feedback?: string;
-  };
-  if (!sessionId || !rating)
-    return NextResponse.json(
-      { error: "sessionId and rating are required." },
-      { status: 400 },
+  try {
+    const user = await getAuthedUser(request);
+    const token = getBearerToken(request);
+    const { sessionId, rating, feedback } = (await request.json()) as {
+      sessionId: string;
+      rating: "up" | "down";
+      feedback?: string;
+    };
+    if (!sessionId || !rating) {
+      return NextResponse.json(
+        { error: "sessionId and rating are required." },
+        { status: 400 },
+      );
+    }
+    const updated = await updatePlannerSessionFeedback(
+      user.id,
+      sessionId,
+      rating,
+      feedback,
+      token ? getSupabaseUserClient(token) : undefined,
     );
-  const updated = await updatePlannerSessionFeedback(sessionId, rating, feedback);
-  if (!updated)
-    return NextResponse.json({ error: "Session not found." }, { status: 404 });
-  return NextResponse.json({ ok: true });
+    if (!updated) {
+      return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message || "Request failed." },
+      { status: isAuthenticationError(error) ? 401 : 500 },
+    );
+  }
 }

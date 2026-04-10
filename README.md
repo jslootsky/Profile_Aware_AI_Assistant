@@ -14,11 +14,13 @@ A Next.js + TypeScript wedding planning app focused on practical affordability, 
 
 ## Current planner flow
 
-1. Complete the wedding survey one question at a time.
-2. Save survey progress or finish onboarding.
-3. Generate a wedding plan using the saved profile as persistent context.
-4. Refine the plan with follow-up requests while preserving the same wedding context.
-5. Add local vendor or venue notes to improve retrieval grounding.
+1. Land on a signed-out homepage with a Google sign-in button.
+2. Authenticate with Google through Supabase Auth.
+3. Complete the wedding survey one question at a time.
+4. Save survey progress or finish onboarding.
+5. Generate a wedding plan using the saved profile as persistent context.
+6. Refine the plan with follow-up requests while preserving the same wedding context.
+7. Add local vendor or venue notes to improve retrieval grounding.
 
 ## Structured output
 
@@ -80,7 +82,8 @@ Optional:
 
 - `OPENAI_MODEL`
 - `OPENAI_EMBED_MODEL`
-- `SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `RAG_CHUNK_SIZE`
 - `RAG_CHUNK_OVERLAP`
@@ -91,8 +94,10 @@ Use `.env.supabase.example` as a template, but copy values into `.env.local` or 
 
 1. Open Supabase SQL Editor.
 2. Paste and run `supabase/schema.sql`.
-3. Add your `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to your real env file.
-4. Restart the app.
+3. In Supabase Auth, enable Google under Authentication > Providers.
+4. Add your site URL and local callback URL in Supabase Auth settings.
+5. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to your real env file.
+6. Restart the app.
 
 The current schema includes:
 
@@ -104,8 +109,9 @@ The current schema includes:
 Notes:
 
 - `knowledge_chunks.embedding` uses `vector(1536)` for `text-embedding-3-small`.
-- The schema disables RLS on the internal app tables used by this project.
-- Use the service-role key, not the anon key.
+- Planner data is keyed to `auth.users` and RLS is enabled in the SQL schema.
+- The browser uses the anon key for Google sign-in; the server verifies bearer tokens with the service-role key.
+- Use the service-role key on the server only. Do not expose it in client code.
 
 ## Migrating local knowledge docs to Supabase
 

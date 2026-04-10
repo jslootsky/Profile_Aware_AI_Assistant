@@ -131,6 +131,88 @@ export interface RetrievalResult {
   reason: "missing-openai-key" | "no-docs" | "no-embeddings" | "ok";
 }
 
+const DEFAULT_MIN_SCORE = Number(process.env.RAG_MIN_SCORE || 0.35);
+const DEFAULT_SCORE_RATIO = Number(process.env.RAG_SCORE_RATIO || 0.75);
+const DEFAULT_CANDIDATE_MULTIPLIER = Number(
+  process.env.RAG_CANDIDATE_MULTIPLIER || 3,
+);
+
+const STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "for",
+  "from",
+  "how",
+  "i",
+  "if",
+  "in",
+  "is",
+  "it",
+  "make",
+  "me",
+  "my",
+  "of",
+  "on",
+  "or",
+  "our",
+  "please",
+  "show",
+  "that",
+  "the",
+  "this",
+  "to",
+  "us",
+  "we",
+  "with",
+]);
+
+function extractKeywords(query: string) {
+  return Array.from(
+    new Set(
+      query
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .map((token) => token.trim())
+        .filter(
+          (token) =>
+            token.length >= 4 &&
+            !STOPWORDS.has(token) &&
+            Number.isNaN(Number(token)),
+        ),
+    ),
+  );
+}
+
+function hasMeaningfulOverlap(snippet: RetrievedSnippet, keywords: string[]) {
+  if (!keywords.length) return true;
+  const haystack = `${snippet.source} ${snippet.text}`.toLowerCase();
+  return keywords.some((keyword) => haystack.includes(keyword));
+}
+
+function filterRelevantSnippets(
+  snippets: RetrievedSnippet[],
+  query: string,
+  topK: number,
+) {
+  if (!snippets.length) return [];
+
+  const keywords = extractKeywords(query);
+  const topScore = snippets[0].score;
+  const relativeFloor = topScore * DEFAULT_SCORE_RATIO;
+
+  return snippets
+    .filter((snippet) => snippet.score >= DEFAULT_MIN_SCORE)
+    .filter((snippet) => snippet.score >= relativeFloor)
+    .filter((snippet) => hasMeaningfulOverlap(snippet, keywords))
+    .slice(0, topK);
+}
+
 export async function retrieveContextDetailed(
   userId: string,
   query: string,
@@ -141,11 +223,14 @@ export async function retrieveContextDetailed(
   }
 
   try {
-    const snippets = await searchVectorStoreWithScore(userId, query, topK);
-    if (!snippets.length) {
+    const candidateK = Math.max(topK, topK * DEFAULT_CANDIDATE_MULTIPLIER);
+    const snippets = await searchVectorStoreWithScore(userId, query, candidateK);
+    const filteredSnippets = filterRelevantSnippets(snippets, query, topK);
+
+    if (!filteredSnippets.length) {
       return { snippets: [], reason: "no-docs" };
     }
-    return { snippets, reason: "ok" };
+    return { snippets: filteredSnippets, reason: "ok" };
   } catch (error) {
     console.error("Vector search error:", error);
     return { snippets: [], reason: "no-docs" };

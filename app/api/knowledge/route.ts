@@ -113,60 +113,76 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
+import { getAuthedUser, getBearerToken, isAuthenticationError } from "@/lib/auth";
 import {
   addKnowledgeDocument,
   listKnowledgeDocuments,
 } from "@/lib/knowledge-store";
 import { embedForStorage, isIndexed } from "@/lib/rag";
+import { getSupabaseUserClient } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
-  const user = await getAuthedUser(request);
-  const docs = await listKnowledgeDocuments(user.id);
-  
-  const docsWithStatus = await Promise.all(
-    docs.map(async (doc) => ({
-      id: doc.id,
-      source: doc.source,
-      content: doc.content,
-      createdAt: doc.createdAt,
-      hasEmbedding: await isIndexed(doc.id),
-    }))
-  );
+  try {
+    const user = await getAuthedUser(request);
+    const token = getBearerToken(request);
+    const docs = await listKnowledgeDocuments(
+      user.id,
+      token ? getSupabaseUserClient(token) : undefined,
+    );
 
-  const response = NextResponse.json({ docs: docsWithStatus });
-  setAuthedCookie(response, user.id);
-  return response;
+    const docsWithStatus = await Promise.all(
+      docs.map(async (doc) => ({
+        id: doc.id,
+        source: doc.source,
+        content: doc.content,
+        createdAt: doc.createdAt,
+        hasEmbedding: await isIndexed(doc.id),
+      })),
+    );
+
+    return NextResponse.json({ docs: docsWithStatus });
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message || "Request failed." },
+      { status: isAuthenticationError(error) ? 401 : 500 },
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getAuthedUser(request);
-  const { source, content } = (await request.json()) as {
-    source: string;
-    content: string;
-  };
+  try {
+    const user = await getAuthedUser(request);
+    const token = getBearerToken(request);
+    const { source, content } = (await request.json()) as {
+      source: string;
+      content: string;
+    };
 
-  if (!source?.trim() || !content?.trim()) {
+    if (!source?.trim() || !content?.trim()) {
+      return NextResponse.json(
+        { error: "Source and content required." },
+        { status: 400 },
+      );
+    }
+
+    const doc = await addKnowledgeDocument({
+      userId: user.id,
+      source: source.trim(),
+      content: content.trim(),
+      embedding: [],
+    }, token ? getSupabaseUserClient(token) : undefined);
+
+    await embedForStorage(user.id, source.trim(), content.trim(), doc.id);
+
+    return NextResponse.json({
+      id: doc.id,
+      source: doc.source,
+      hasEmbedding: await isIndexed(doc.id),
+    });
+  } catch (error) {
     return NextResponse.json(
-      { error: "Source and content required." },
-      { status: 400 },
+      { error: (error as Error).message || "Request failed." },
+      { status: isAuthenticationError(error) ? 401 : 500 },
     );
   }
-
-  const doc = await addKnowledgeDocument({
-    userId: user.id,
-    source: source.trim(),
-    content: content.trim(),
-    embedding: [], 
-  });
-
-  await embedForStorage(user.id, source.trim(), content.trim(), doc.id);
-
-  const response = NextResponse.json({
-    id: doc.id,
-    source: doc.source,
-    hasEmbedding: await isIndexed(doc.id),
-  });
-  setAuthedCookie(response, user.id);
-  return response;
 }

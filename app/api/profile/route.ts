@@ -178,35 +178,55 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
+import { getAuthedUser, getBearerToken, isAuthenticationError } from "@/lib/auth";
 import { WeddingProfile } from "@/lib/types";
 import { mergeWeddingProfile } from "@/lib/wedding-profile";
 import { getPlannerProfile, savePlannerProfile } from "@/lib/planner-store";
+import { getSupabaseUserClient } from "@/lib/supabase";
 import { validateWeddingProfile } from "@/lib/wedding-validation";
 
 export async function GET(request: NextRequest) {
-  const user = await getAuthedUser(request);
-  const profile = await getPlannerProfile(user.id);
-  const response = NextResponse.json({ profile: mergeWeddingProfile(profile) });
-  setAuthedCookie(response, user.id);
-  return response;
+  try {
+    const user = await getAuthedUser(request);
+    const token = getBearerToken(request);
+    const profile = await getPlannerProfile(
+      user.id,
+      token ? getSupabaseUserClient(token) : undefined,
+    );
+    return NextResponse.json({ profile: mergeWeddingProfile(profile) });
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message || "Request failed." },
+      { status: isAuthenticationError(error) ? 401 : 500 },
+    );
+  }
 }
 
 export async function PUT(request: NextRequest) {
-  const user = await getAuthedUser(request);
-  const validation = validateWeddingProfile(
-    (await request.json()) as Partial<WeddingProfile>,
-    { allowIncomplete: true },
-  );
-  if (!validation.valid) {
+  try {
+    const user = await getAuthedUser(request);
+    const token = getBearerToken(request);
+    const validation = validateWeddingProfile(
+      (await request.json()) as Partial<WeddingProfile>,
+      { allowIncomplete: true },
+    );
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.errors.join(" ") },
+        { status: 400 },
+      );
+    }
+    const profile = mergeWeddingProfile(validation.profile);
+    await savePlannerProfile(
+      user.id,
+      profile,
+      token ? getSupabaseUserClient(token) : undefined,
+    );
+    return NextResponse.json({ ok: true });
+  } catch (error) {
     return NextResponse.json(
-      { error: validation.errors.join(" ") },
-      { status: 400 },
+      { error: (error as Error).message || "Request failed." },
+      { status: isAuthenticationError(error) ? 401 : 500 },
     );
   }
-  const profile = mergeWeddingProfile(validation.profile);
-  await savePlannerProfile(user.id, profile);
-  const response = NextResponse.json({ ok: true });
-  setAuthedCookie(response, user.id);
-  return response;
 }

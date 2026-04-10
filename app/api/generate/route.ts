@@ -130,11 +130,12 @@
 
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedUser, setAuthedCookie } from "@/lib/auth";
+import { getAuthedUser, getBearerToken, isAuthenticationError } from "@/lib/auth";
 import { generateStructuredResponse } from "@/lib/llm";
 import { GenerateRequest } from "@/lib/types";
 import { DEFAULT_WEDDING_PROFILE, mergeWeddingProfile } from "@/lib/wedding-profile";
 import { savePlannerProfile, savePlannerSession } from "@/lib/planner-store";
+import { getSupabaseUserClient } from "@/lib/supabase";
 import { validateGenerateRequest } from "@/lib/wedding-validation";
 
 const DEFAULT_PROFILE: GenerateRequest["profile"] = DEFAULT_WEDDING_PROFILE;
@@ -171,7 +172,9 @@ export async function POST(request: NextRequest) {
 
     // Resolve user identity (cookie/header) and persist profile
     const user = await getAuthedUser(request);
-    await savePlannerProfile(user.id, payload.profile);
+    const token = getBearerToken(request);
+    const supabase = token ? getSupabaseUserClient(token) : undefined;
+    await savePlannerProfile(user.id, payload.profile, supabase);
 
     // Generate response (structured JSON or fallback)
     const result = await generateStructuredResponse(user.id, payload);
@@ -187,23 +190,23 @@ export async function POST(request: NextRequest) {
       // If report should be a string, store JSON.stringify(result.response) instead.
       report: result.response,
       createdAt: new Date().toISOString(),
-    });
+    }, supabase);
 
     // Return response and set auth cookie for subsequent calls
-    const response = NextResponse.json({
+    return NextResponse.json({
       prompt: result.prompt,
       response: result.response,
       debug: payload.options.ragDebug ? result.debug : undefined,
       sessionId,
       userId: user.id,
     });
-    setAuthedCookie(response, user.id);
-    return response;
   } catch (error) {
+    const message = (error as Error).message || "Failed to generate response.";
+    const status = isAuthenticationError(error) ? 401 : 500;
     console.error("/api/generate failed", error);
     return NextResponse.json(
-      { error: "Failed to generate response." },
-      { status: 500 },
+      { error: status === 401 ? message : "Failed to generate response." },
+      { status },
     );
   }
 }
