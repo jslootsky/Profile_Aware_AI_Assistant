@@ -69,12 +69,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedUser, isAuthenticationError } from "@/lib/auth";
+import { getAuthedUser, getBearerToken, isAuthenticationError } from "@/lib/auth";
 import { updatePlannerSessionFeedback } from "@/lib/planner-store";
+import { getSupabaseUserClient } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthedUser(request);
+    const token = getBearerToken(request);
     const { sessionId, rating, feedback } = (await request.json()) as {
       sessionId: string;
       rating: "up" | "down";
@@ -91,6 +93,7 @@ export async function POST(request: NextRequest) {
       sessionId,
       rating,
       feedback,
+      token ? getSupabaseUserClient(token) : undefined,
     );
     if (!updated) {
       return NextResponse.json({ error: "Session not found." }, { status: 404 });

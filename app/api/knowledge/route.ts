@@ -113,17 +113,22 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedUser, isAuthenticationError } from "@/lib/auth";
+import { getAuthedUser, getBearerToken, isAuthenticationError } from "@/lib/auth";
 import {
   addKnowledgeDocument,
   listKnowledgeDocuments,
 } from "@/lib/knowledge-store";
 import { embedForStorage, isIndexed } from "@/lib/rag";
+import { getSupabaseUserClient } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthedUser(request);
-    const docs = await listKnowledgeDocuments(user.id);
+    const token = getBearerToken(request);
+    const docs = await listKnowledgeDocuments(
+      user.id,
+      token ? getSupabaseUserClient(token) : undefined,
+    );
 
     const docsWithStatus = await Promise.all(
       docs.map(async (doc) => ({
@@ -147,6 +152,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthedUser(request);
+    const token = getBearerToken(request);
     const { source, content } = (await request.json()) as {
       source: string;
       content: string;
@@ -164,7 +170,7 @@ export async function POST(request: NextRequest) {
       source: source.trim(),
       content: content.trim(),
       embedding: [],
-    });
+    }, token ? getSupabaseUserClient(token) : undefined);
 
     await embedForStorage(user.id, source.trim(), content.trim(), doc.id);
 

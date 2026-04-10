@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase";
 import {
   getProfile as getLocalProfile,
@@ -38,12 +39,15 @@ function mapSessionRow(row: PlannerSessionRow): StoredSessionOutput {
   };
 }
 
-export async function getPlannerProfile(userId: string): Promise<WeddingProfile | null> {
+export async function getPlannerProfile(
+  userId: string,
+  supabaseClient?: SupabaseClient,
+): Promise<WeddingProfile | null> {
   if (!isSupabaseConfigured()) {
     return getLocalProfile(userId);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { data, error } = await supabase
     .from("wedding_profiles")
     .select("*")
@@ -57,12 +61,16 @@ export async function getPlannerProfile(userId: string): Promise<WeddingProfile 
   return data ? (data as WeddingProfileRow).profile_json : null;
 }
 
-export async function savePlannerProfile(userId: string, profile: WeddingProfile) {
+export async function savePlannerProfile(
+  userId: string,
+  profile: WeddingProfile,
+  supabaseClient?: SupabaseClient,
+) {
   if (!isSupabaseConfigured()) {
     return saveLocalProfile(userId, profile);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { error } = await supabase.from("wedding_profiles").upsert(
     {
       user_id: userId,
@@ -77,12 +85,15 @@ export async function savePlannerProfile(userId: string, profile: WeddingProfile
   }
 }
 
-export async function savePlannerSession(output: StoredSessionOutput) {
+export async function savePlannerSession(
+  output: StoredSessionOutput,
+  supabaseClient?: SupabaseClient,
+) {
   if (!isSupabaseConfigured()) {
     return saveLocalSession(output);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { error } = await supabase.from("planner_sessions").insert({
     id: output.id,
     user_id: output.userId,
@@ -104,13 +115,14 @@ export async function updatePlannerSessionFeedback(
   sessionId: string,
   rating: "up" | "down",
   feedback?: string,
+  supabaseClient?: SupabaseClient,
 ) {
   if (!isSupabaseConfigured()) {
     void userId;
     return updateLocalSessionFeedback(sessionId, rating, feedback);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { data, error } = await supabase
     .from("planner_sessions")
     .update({
@@ -129,12 +141,15 @@ export async function updatePlannerSessionFeedback(
   return data ? mapSessionRow(data as PlannerSessionRow) : null;
 }
 
-export async function listPlannerSessions(userId: string) {
+export async function listPlannerSessions(
+  userId: string,
+  supabaseClient?: SupabaseClient,
+) {
   if (!isSupabaseConfigured()) {
     return listLocalSessions(userId);
   }
 
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseClient || getSupabaseAdmin();
   const { data, error } = await supabase
     .from("planner_sessions")
     .select("*")

@@ -49,6 +49,7 @@ export interface WeddingProfile {
   totalBudget: number;
   guestCount: number;
   location: string;
+  avatarUrl?: string;
   season: WeddingSeason;
   targetDate: string;
   priorities: WeddingPriority[];

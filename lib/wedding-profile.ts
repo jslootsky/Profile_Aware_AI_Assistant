@@ -5,6 +5,7 @@ export const DEFAULT_WEDDING_PROFILE: WeddingProfile = {
   totalBudget: 0,
   guestCount: 0,
   location: "",
+  avatarUrl: "",
   season: "",
   targetDate: "",
   priorities: [],
@@ -33,6 +34,7 @@ export function mergeWeddingProfile(
   return {
     ...DEFAULT_WEDDING_PROFILE,
     ...(incoming || {}),
+    avatarUrl: typeof incoming?.avatarUrl === "string" ? incoming.avatarUrl : "",
     priorities: Array.isArray(incoming?.priorities)
       ? incoming.priorities
       : DEFAULT_WEDDING_PROFILE.priorities,

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedUser, isAuthenticationError } from "@/lib/auth";
+import { getAuthedUser, getBearerToken, isAuthenticationError } from "@/lib/auth";
 import {
   deleteKnowledgeDocument,
   getKnowledgeDocumentById,
   updateKnowledgeDocument,
 } from "@/lib/knowledge-store";
 import { embedForStorage, removeFromStorage, isIndexed } from "@/lib/rag";
+import { getSupabaseUserClient } from "@/lib/supabase";
 
 export async function PUT(
   request: NextRequest,
@@ -13,7 +14,9 @@ export async function PUT(
 ) {
   try {
     const user = await getAuthedUser(request);
-    const existing = await getKnowledgeDocumentById(params.id);
+    const token = getBearerToken(request);
+    const supabase = token ? getSupabaseUserClient(token) : undefined;
+    const existing = await getKnowledgeDocumentById(params.id, supabase);
 
     if (!existing || existing.userId !== user.id) {
       return NextResponse.json({ error: "Document not found." }, { status: 404 });
@@ -38,7 +41,7 @@ export async function PUT(
       source,
       content,
       embedding: [],
-    });
+    }, supabase);
 
     return NextResponse.json({
       id: updated?.id,
@@ -59,13 +62,15 @@ export async function DELETE(
 ) {
   try {
     const user = await getAuthedUser(request);
-    const existing = await getKnowledgeDocumentById(params.id);
+    const token = getBearerToken(request);
+    const supabase = token ? getSupabaseUserClient(token) : undefined;
+    const existing = await getKnowledgeDocumentById(params.id, supabase);
 
     if (!existing || existing.userId !== user.id) {
       return NextResponse.json({ error: "Document not found." }, { status: 404 });
     }
 
-    await deleteKnowledgeDocument(params.id);
+    await deleteKnowledgeDocument(params.id, supabase);
     await removeFromStorage(params.id);
 
     return NextResponse.json({ deleted: true });

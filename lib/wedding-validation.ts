@@ -10,6 +10,14 @@ function isNonEmptyString(value: unknown) {
   );
 }
 
+function shouldValidateNumberMin(value: number, allowIncomplete: boolean) {
+  if (!allowIncomplete) {
+    return true;
+  }
+
+  return value !== 0;
+}
+
 export function validateWeddingProfile(
   input: Partial<WeddingProfile>,
   options?: { allowIncomplete?: boolean },
@@ -35,10 +43,16 @@ export function validateWeddingProfile(
     }
   }
 
-  if (normalized.totalBudget < 1000) {
+  if (
+    shouldValidateNumberMin(normalized.totalBudget, allowIncomplete) &&
+    normalized.totalBudget < 1000
+  ) {
     errors.push("Budget must be at least $1,000.");
   }
-  if (normalized.guestCount < 10) {
+  if (
+    shouldValidateNumberMin(normalized.guestCount, allowIncomplete) &&
+    normalized.guestCount < 10
+  ) {
     errors.push("Guest count must be at least 10.");
   }
   if (normalized.surveyStep < 0 || normalized.surveyStep > weddingSurveySchema.length - 1) {

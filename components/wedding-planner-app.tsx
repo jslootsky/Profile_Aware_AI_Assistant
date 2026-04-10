@@ -67,6 +67,7 @@ export function WeddingPlannerApp() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [avatarStatus, setAvatarStatus] = useState<string | null>(null);
 
   const [profile, setProfile] = useState<WeddingProfile>(DEFAULT_WEDDING_PROFILE);
   const [task, setTask] = useState("");
@@ -122,6 +123,7 @@ export function WeddingPlannerApp() {
     setIsSavingSurvey(false);
     setIsEditingSurvey(false);
     setIsGenerating(false);
+    setAvatarStatus(null);
   }
 
   function applySession(session: Session | null) {
@@ -238,7 +240,16 @@ export function WeddingPlannerApp() {
 
         if (profileRes.ok) {
           const data = (await profileRes.json()) as { profile: WeddingProfile | null };
-          setProfile(mergeWeddingProfile(data.profile));
+          const mergedProfile = mergeWeddingProfile(data.profile);
+          setProfile(mergedProfile);
+          setAuthUser((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  avatarUrl: mergedProfile.avatarUrl || prev.avatarUrl,
+                }
+              : prev,
+          );
         }
 
         if (docsRes.ok) {
@@ -317,6 +328,28 @@ export function WeddingPlannerApp() {
     setSurveyStatus(message || "Progress saved.");
     setError(null);
     return true;
+  }
+
+  async function handleAvatarUpload(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setAvatarStatus("Please choose an image file.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setAvatarStatus("Profile pictures must be 2MB or smaller.");
+      return;
+    }
+
+    const avatarUrl = await readFileAsDataUrl(file);
+    const nextProfile = mergeWeddingProfile({
+      ...profile,
+      avatarUrl,
+    });
+    const saved = await persistProfile(nextProfile, "Profile picture updated.");
+    if (!saved) return;
+
+    setAuthUser((prev) => (prev ? { ...prev, avatarUrl } : prev));
+    setAvatarStatus("Profile picture updated.");
   }
 
   async function goToSurveyStep(nextStep: number) {
@@ -507,8 +540,10 @@ export function WeddingPlannerApp() {
           <AuthenticatedTopBar
             user={authUser}
             onSignOut={handleSignOut}
+            onUploadAvatar={handleAvatarUpload}
             isSigningOut={isSigningOut}
           />
+          {avatarStatus && <p className="mt-3 text-sm text-slate-600">{avatarStatus}</p>}
         </div>
         <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-6xl items-center justify-center">
           <section
@@ -709,8 +744,10 @@ export function WeddingPlannerApp() {
         <AuthenticatedTopBar
           user={authUser}
           onSignOut={handleSignOut}
+          onUploadAvatar={handleAvatarUpload}
           isSigningOut={isSigningOut}
         />
+        {avatarStatus && <p className="mt-3 text-sm text-slate-600">{avatarStatus}</p>}
 
         <header className="mt-6 rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
@@ -1016,10 +1053,12 @@ export function WeddingPlannerApp() {
 function AuthenticatedTopBar({
   user,
   onSignOut,
+  onUploadAvatar,
   isSigningOut,
 }: {
   user: PlannerAuthUser;
   onSignOut: () => void;
+  onUploadAvatar: (file: File) => Promise<void> | void;
   isSigningOut: boolean;
 }) {
   return (
@@ -1032,9 +1071,23 @@ function AuthenticatedTopBar({
           Planner data, survey progress, and retrieval notes are scoped to your account.
         </p>
       </div>
-      <UserMenu user={user} onSignOut={onSignOut} isSigningOut={isSigningOut} />
+      <UserMenu
+        user={user}
+        onSignOut={onSignOut}
+        onUploadAvatar={onUploadAvatar}
+        isSigningOut={isSigningOut}
+      />
     </div>
   );
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read the selected image."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function SurveyStepCard({

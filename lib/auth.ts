@@ -17,7 +17,7 @@ export function isAuthenticationError(error: unknown) {
   );
 }
 
-function getBearerToken(request: NextRequest) {
+export function getBearerToken(request: NextRequest) {
   const authorization = request.headers.get("authorization") || "";
   const [scheme, token] = authorization.split(" ");
   if (scheme?.toLowerCase() !== "bearer" || !token) {

@@ -178,16 +178,21 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedUser, isAuthenticationError } from "@/lib/auth";
+import { getAuthedUser, getBearerToken, isAuthenticationError } from "@/lib/auth";
 import { WeddingProfile } from "@/lib/types";
 import { mergeWeddingProfile } from "@/lib/wedding-profile";
 import { getPlannerProfile, savePlannerProfile } from "@/lib/planner-store";
+import { getSupabaseUserClient } from "@/lib/supabase";
 import { validateWeddingProfile } from "@/lib/wedding-validation";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthedUser(request);
-    const profile = await getPlannerProfile(user.id);
+    const token = getBearerToken(request);
+    const profile = await getPlannerProfile(
+      user.id,
+      token ? getSupabaseUserClient(token) : undefined,
+    );
     return NextResponse.json({ profile: mergeWeddingProfile(profile) });
   } catch (error) {
     return NextResponse.json(
@@ -200,6 +205,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const user = await getAuthedUser(request);
+    const token = getBearerToken(request);
     const validation = validateWeddingProfile(
       (await request.json()) as Partial<WeddingProfile>,
       { allowIncomplete: true },
@@ -211,7 +217,11 @@ export async function PUT(request: NextRequest) {
       );
     }
     const profile = mergeWeddingProfile(validation.profile);
-    await savePlannerProfile(user.id, profile);
+    await savePlannerProfile(
+      user.id,
+      profile,
+      token ? getSupabaseUserClient(token) : undefined,
+    );
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(

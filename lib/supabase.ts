@@ -18,6 +18,10 @@ export function isSupabaseBrowserConfigured() {
   );
 }
 
+export function getSupabaseAnonKey() {
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+}
+
 export function getSupabaseAdmin() {
   if (!isSupabaseConfigured()) {
     throw new Error(
@@ -39,4 +43,24 @@ export function getSupabaseAdmin() {
   }
 
   return supabaseAdmin;
+}
+
+export function getSupabaseUserClient(accessToken: string) {
+  if (!getSupabaseUrl() || !getSupabaseAnonKey()) {
+    throw new Error(
+      "Supabase browser auth is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    );
+  }
+
+  return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });
 }
