@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import path from "path";
 import fs from "fs/promises";
 import crypto from "crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { getEmbeddings, splitKnowledgeDocument } from "./langchain";
 import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase";
@@ -91,16 +92,19 @@ function splitText(
   return chunks;
 }
 
-function getLangChainVectorStore() {
+function getLangChainVectorStore(supabaseClient?: SupabaseClient) {
   return new SupabaseVectorStore(getEmbeddings(), {
-    client: getSupabaseAdmin(),
+    client: supabaseClient || getSupabaseAdmin(),
     tableName: "knowledge_chunks",
     queryName: "match_knowledge_chunks",
   });
 }
 
-async function removeDocumentFromSupabase(documentId: string) {
-  const { error } = await getSupabaseAdmin()
+async function removeDocumentFromSupabase(
+  documentId: string,
+  supabaseClient?: SupabaseClient,
+) {
+  const { error } = await (supabaseClient || getSupabaseAdmin())
     .from("knowledge_chunks")
     .delete()
     .contains("metadata", { document_id: documentId });
@@ -115,10 +119,11 @@ async function addDocumentToSupabase(
   source: string,
   content: string,
   documentId: string,
+  supabaseClient?: SupabaseClient,
 ) {
-  await removeDocumentFromSupabase(documentId);
+  await removeDocumentFromSupabase(documentId, supabaseClient);
 
-  const vectorStore = getLangChainVectorStore();
+  const vectorStore = getLangChainVectorStore(supabaseClient);
   const docs = await splitKnowledgeDocument({
     userId,
     documentId,
@@ -154,8 +159,11 @@ async function searchSupabaseVectorStore(
     .slice(0, topK);
 }
 
-async function isSupabaseDocumentIndexed(documentId: string) {
-  const { count, error } = await getSupabaseAdmin()
+async function isSupabaseDocumentIndexed(
+  documentId: string,
+  supabaseClient?: SupabaseClient,
+) {
+  const { count, error } = await (supabaseClient || getSupabaseAdmin())
     .from("knowledge_chunks")
     .select("id", { count: "exact", head: true })
     .contains("metadata", { document_id: documentId });
@@ -219,9 +227,12 @@ async function searchFileVectorStore(
     .slice(0, topK);
 }
 
-export async function removeDocumentFromVectorStore(documentId: string) {
+export async function removeDocumentFromVectorStore(
+  documentId: string,
+  supabaseClient?: SupabaseClient,
+) {
   if (isSupabaseConfigured()) {
-    await removeDocumentFromSupabase(documentId);
+    await removeDocumentFromSupabase(documentId, supabaseClient);
     return;
   }
 
@@ -233,18 +244,22 @@ export async function addDocumentToVectorStore(
   source: string,
   content: string,
   documentId: string,
+  supabaseClient?: SupabaseClient,
 ) {
   if (isSupabaseConfigured()) {
-    await addDocumentToSupabase(userId, source, content, documentId);
+    await addDocumentToSupabase(userId, source, content, documentId, supabaseClient);
     return;
   }
 
   await addDocumentToFileStore(userId, source, content, documentId);
 }
 
-export async function isDocumentIndexed(documentId: string): Promise<boolean> {
+export async function isDocumentIndexed(
+  documentId: string,
+  supabaseClient?: SupabaseClient,
+): Promise<boolean> {
   if (isSupabaseConfigured()) {
-    return isSupabaseDocumentIndexed(documentId);
+    return isSupabaseDocumentIndexed(documentId, supabaseClient);
   }
 
   const store = await ensureChunksStore();

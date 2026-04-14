@@ -138,6 +138,7 @@ import {
   calculateWeddingBudget,
 } from "./wedding-calculator";
 import { retrievePlanningContext } from "./wedding-retrieval";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-4";
 
@@ -172,6 +173,9 @@ const structuredSchema = {
             name: { type: "string" },
             region: { type: "string" },
             priceEstimate: { type: "string" },
+            contact: { type: "string" },
+            status: { type: "string", enum: ["contracted", "not_contracted"] },
+            source: { type: "string" },
             whyItFits: { type: "string" },
           },
           required: [
@@ -179,6 +183,9 @@ const structuredSchema = {
             "name",
             "region",
             "priceEstimate",
+            "contact",
+            "status",
+            "source",
             "whyItFits",
           ],
         },
@@ -238,8 +245,9 @@ function fallbackResponse(
 
 function buildRetrievalQuery(input: GenerateRequest): string {
   return [
-    `Task: ${input.task}`,
-    `Refinement: ${input.refinement || "none"}`,
+    `Base Task: ${input.task}`,
+    `Revision Request: ${input.revisionRequest || "none"}`,
+    `Has Previous Output: ${input.previousOutput ? "yes" : "no"}`,
     `Budget: ${input.profile.totalBudget}`,
     `Guest Count: ${input.profile.guestCount}`,
     `Location: ${input.profile.location || "none"}`,
@@ -252,13 +260,14 @@ function buildRetrievalQuery(input: GenerateRequest): string {
 export async function generateStructuredResponse(
   userId: string,
   input: GenerateRequest,
+  supabaseClient?: SupabaseClient,
 ) {
   const retrievalQuery = buildRetrievalQuery(input);
   const budgetPlan = calculateWeddingBudget(input.profile);
   const cheaperScenario = calculateScenarioAdjustments(input.profile, undefined, 0.1);
 
   const retrieval = input.options.citeSources
-    ? await retrievePlanningContext(userId, input.profile, retrievalQuery)
+    ? await retrievePlanningContext(userId, input.profile, retrievalQuery, supabaseClient)
     : {
         vendorSuggestions: [],
         documentRetrieval: { snippets: [], reason: "ok" as const },

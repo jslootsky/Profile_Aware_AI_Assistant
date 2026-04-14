@@ -43,6 +43,9 @@ uploads/
 # misc
 *.pem
 auth.md
+requirements.md
+ux_flow.md
+Microsoft/
 
 #data
 data/store.json

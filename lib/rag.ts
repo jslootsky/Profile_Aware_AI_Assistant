@@ -119,6 +119,8 @@ import {
   removeDocumentFromVectorStore,
   isDocumentIndexed,
 } from "./vector-store";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { listKnowledgeDocuments } from "./knowledge-store";
 
 export interface RetrievedSnippet {
   source: string;
@@ -131,104 +133,64 @@ export interface RetrievalResult {
   reason: "missing-openai-key" | "no-docs" | "no-embeddings" | "ok";
 }
 
-const DEFAULT_MIN_SCORE = Number(process.env.RAG_MIN_SCORE || 0.35);
-const DEFAULT_SCORE_RATIO = Number(process.env.RAG_SCORE_RATIO || 0.75);
 const DEFAULT_CANDIDATE_MULTIPLIER = Number(
   process.env.RAG_CANDIDATE_MULTIPLIER || 3,
 );
+const DEFAULT_MAX_CONTEXT_SNIPPETS = Number(process.env.RAG_MAX_CONTEXT_SNIPPETS || 20);
 
-const STOPWORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "are",
-  "as",
-  "at",
-  "be",
-  "by",
-  "for",
-  "from",
-  "how",
-  "i",
-  "if",
-  "in",
-  "is",
-  "it",
-  "make",
-  "me",
-  "my",
-  "of",
-  "on",
-  "or",
-  "our",
-  "please",
-  "show",
-  "that",
-  "the",
-  "this",
-  "to",
-  "us",
-  "we",
-  "with",
-]);
+async function retrieveRelevantNotes(
+  userId: string,
+  _query: string,
+  supabaseClient?: SupabaseClient,
+): Promise<RetrievedSnippet[]> {
+  const docs = await listKnowledgeDocuments(userId, supabaseClient);
 
-function extractKeywords(query: string) {
-  return Array.from(
-    new Set(
-      query
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .map((token) => token.trim())
-        .filter(
-          (token) =>
-            token.length >= 4 &&
-            !STOPWORDS.has(token) &&
-            Number.isNaN(Number(token)),
-        ),
-    ),
-  );
+  return docs
+    .slice(0, DEFAULT_MAX_CONTEXT_SNIPPETS)
+    .map((doc) => ({
+      source: doc.source,
+      text: doc.content,
+      score: 1,
+    }));
 }
 
-function hasMeaningfulOverlap(snippet: RetrievedSnippet, keywords: string[]) {
-  if (!keywords.length) return true;
-  const haystack = `${snippet.source} ${snippet.text}`.toLowerCase();
-  return keywords.some((keyword) => haystack.includes(keyword));
-}
+function mergeSnippets(snippets: RetrievedSnippet[]) {
+  const seen = new Set<string>();
+  const merged: RetrievedSnippet[] = [];
 
-function filterRelevantSnippets(
-  snippets: RetrievedSnippet[],
-  query: string,
-  topK: number,
-) {
-  if (!snippets.length) return [];
+  for (const snippet of snippets) {
+    const key = `${snippet.source}\n${snippet.text}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(snippet);
+  }
 
-  const keywords = extractKeywords(query);
-  const topScore = snippets[0].score;
-  const relativeFloor = topScore * DEFAULT_SCORE_RATIO;
-
-  return snippets
-    .filter((snippet) => snippet.score >= DEFAULT_MIN_SCORE)
-    .filter((snippet) => snippet.score >= relativeFloor)
-    .filter((snippet) => hasMeaningfulOverlap(snippet, keywords))
-    .slice(0, topK);
+  return merged;
 }
 
 export async function retrieveContextDetailed(
   userId: string,
   query: string,
-  topK = 3,
+  topK = DEFAULT_MAX_CONTEXT_SNIPPETS,
+  supabaseClient?: SupabaseClient,
 ): Promise<RetrievalResult> {
-  if (!process.env.OPENAI_API_KEY) {
-    return { snippets: [], reason: "missing-openai-key" };
-  }
-
   try {
-    const candidateK = Math.max(topK, topK * DEFAULT_CANDIDATE_MULTIPLIER);
-    const snippets = await searchVectorStoreWithScore(userId, query, candidateK);
-    const filteredSnippets = filterRelevantSnippets(snippets, query, topK);
+    const noteSnippets = await retrieveRelevantNotes(userId, query, supabaseClient);
+    const vectorSnippets = process.env.OPENAI_API_KEY
+      ? await searchVectorStoreWithScore(
+          userId,
+          query,
+          Math.max(topK, topK * DEFAULT_CANDIDATE_MULTIPLIER),
+        )
+      : [];
+    const snippets = mergeSnippets([...noteSnippets, ...vectorSnippets]);
+    const filteredSnippets = snippets.slice(0, topK);
 
     if (!filteredSnippets.length) {
-      return { snippets: [], reason: "no-docs" };
+      return {
+        snippets: [],
+        reason: process.env.OPENAI_API_KEY ? "no-docs" : "missing-openai-key",
+      };
     }
     return { snippets: filteredSnippets, reason: "ok" };
   } catch (error) {
@@ -251,15 +213,22 @@ export async function embedForStorage(
   source: string,
   content: string,
   documentId: string, // now required
+  supabaseClient?: SupabaseClient,
 ): Promise<void> {
   if (!process.env.OPENAI_API_KEY) return;
-  await addDocumentToVectorStore(userId, source, content, documentId);
+  await addDocumentToVectorStore(userId, source, content, documentId, supabaseClient);
 }
 
-export async function removeFromStorage(documentId: string): Promise<void> {
-  await removeDocumentFromVectorStore(documentId);
+export async function removeFromStorage(
+  documentId: string,
+  supabaseClient?: SupabaseClient,
+): Promise<void> {
+  await removeDocumentFromVectorStore(documentId, supabaseClient);
 }
 
-export async function isIndexed(documentId: string): Promise<boolean> {
-  return isDocumentIndexed(documentId);
+export async function isIndexed(
+  documentId: string,
+  supabaseClient?: SupabaseClient,
+): Promise<boolean> {
+  return isDocumentIndexed(documentId, supabaseClient);
 }

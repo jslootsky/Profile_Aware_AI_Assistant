@@ -15,6 +15,7 @@ export const DEFAULT_WEDDING_PROFILE: WeddingProfile = {
   constraints: "",
   ceremonyType: "",
   cateringPreference: "",
+  customBudgetSections: [],
   surveyStep: 0,
   onboardingComplete: false,
 };
@@ -38,6 +39,18 @@ export function mergeWeddingProfile(
     priorities: Array.isArray(incoming?.priorities)
       ? incoming.priorities
       : DEFAULT_WEDDING_PROFILE.priorities,
+    customBudgetSections: Array.isArray(incoming?.customBudgetSections)
+      ? incoming.customBudgetSections
+          .map((section) => ({
+            category: String(section?.category || "").trim(),
+            allocation: Math.max(0, Math.round(Number(section?.allocation || 0))),
+            rationale:
+              typeof section?.rationale === "string"
+                ? section.rationale
+                : "Custom budget section added by the user.",
+          }))
+          .filter((section) => section.category && section.allocation >= 0)
+      : DEFAULT_WEDDING_PROFILE.customBudgetSections,
     totalBudget: Number(incoming?.totalBudget || DEFAULT_WEDDING_PROFILE.totalBudget),
     guestCount: Number(incoming?.guestCount || DEFAULT_WEDDING_PROFILE.guestCount),
     onboardingComplete: Boolean(incoming?.onboardingComplete),

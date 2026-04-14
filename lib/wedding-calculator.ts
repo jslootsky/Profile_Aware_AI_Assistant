@@ -20,19 +20,21 @@ const CATEGORY_RULES: AllocationRule[] = [
   { key: "photo", label: "Photography / Video", basePct: 0.12, minPct: 0.08, maxPct: 0.18 },
   { key: "music", label: "Music / DJ", basePct: 0.08, minPct: 0.04, maxPct: 0.12 },
   { key: "florals", label: "Decor / Florals", basePct: 0.08, minPct: 0.03, maxPct: 0.15 },
-  { key: "attire", label: "Attire / Beauty", basePct: 0.08, minPct: 0.04, maxPct: 0.14 },
-  { key: "coordination", label: "Coordination / Misc", basePct: 0.07, minPct: 0.04, maxPct: 0.12 },
+  { key: "dress", label: "Wedding Dress", basePct: 0.04, minPct: 0.015, maxPct: 0.08 },
+  { key: "suit", label: "Wedding Suit", basePct: 0.02, minPct: 0.01, maxPct: 0.05 },
+  { key: "beauty", label: "Hair / Makeup / Beauty", basePct: 0.02, minPct: 0.01, maxPct: 0.05 },
+  { key: "miscellaneous", label: "Miscellaneous", basePct: 0.07, minPct: 0.04, maxPct: 0.12 },
 ];
 
 const PRIORITY_BUMPS: Record<WeddingPriority, Partial<Record<string, number>>> = {
-  food: { food: 0.05, florals: -0.02, attire: -0.01 },
-  venue: { venue: 0.05, florals: -0.02, coordination: -0.01 },
+  food: { food: 0.05, florals: -0.02, beauty: -0.01 },
+  venue: { venue: 0.05, florals: -0.02, miscellaneous: -0.01 },
   "photo-video": { photo: 0.04, florals: -0.02, music: -0.01 },
   music: { music: 0.03, florals: -0.02 },
-  decor: { florals: 0.04, attire: -0.01, music: -0.01 },
-  attire: { attire: 0.03, florals: -0.02 },
+  decor: { florals: 0.04, beauty: -0.01, music: -0.01 },
+  attire: { dress: 0.02, suit: 0.01, florals: -0.02 },
   "guest-experience": { food: 0.03, venue: 0.02, florals: -0.02 },
-  "low-stress": { coordination: 0.03, florals: -0.01, diy: -0.02 },
+  "low-stress": { miscellaneous: 0.03, florals: -0.01, diy: -0.02 },
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -59,9 +61,9 @@ function adjustForProfile(profile: WeddingProfile) {
 
   if (profile.diyWillingness === "high") {
     weights.florals -= 0.03;
-    weights.coordination -= 0.01;
+    weights.miscellaneous -= 0.01;
   } else if (profile.diyWillingness === "none") {
-    weights.coordination += 0.02;
+    weights.miscellaneous += 0.02;
   }
 
   for (const priority of profile.priorities) {
@@ -114,15 +116,23 @@ export function calculateWeddingBudget(profile: WeddingProfile): WeddingCostPlan
   const weights = adjustForProfile(profile);
   const lineItems: BudgetLineItem[] = CATEGORY_RULES.map((rule) => {
     const allocation = Math.round(profile.totalBudget * weights[rule.key]);
-    const rangeFloor = Math.round(allocation * 0.9);
     const rangeCeiling = Math.round(allocation * 1.1);
     return {
       category: rule.label,
-      allocation,
-      estimatedRange: `${formatCurrency(rangeFloor)}-${formatCurrency(rangeCeiling)}`,
+      allocation: rangeCeiling,
+      estimatedRange: formatCurrency(rangeCeiling),
       rationale: buildRationale(profile, rule.key),
     };
   });
+
+  for (const section of profile.customBudgetSections || []) {
+    lineItems.push({
+      category: section.category,
+      allocation: Math.round(section.allocation),
+      estimatedRange: formatCurrency(section.allocation),
+      rationale: section.rationale || "Custom budget section added by the user.",
+    });
+  }
 
   const budgetPerGuest = Math.round(profile.totalBudget / Math.max(profile.guestCount, 1));
   const tradeoffs: string[] = [];

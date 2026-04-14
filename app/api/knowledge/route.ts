@@ -125,9 +125,10 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getAuthedUser(request);
     const token = getBearerToken(request);
+    const supabase = token ? getSupabaseUserClient(token) : undefined;
     const docs = await listKnowledgeDocuments(
       user.id,
-      token ? getSupabaseUserClient(token) : undefined,
+      supabase,
     );
 
     const docsWithStatus = await Promise.all(
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
         source: doc.source,
         content: doc.content,
         createdAt: doc.createdAt,
-        hasEmbedding: await isIndexed(doc.id),
+        hasEmbedding: await isIndexed(doc.id, supabase),
       })),
     );
 
@@ -153,6 +154,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getAuthedUser(request);
     const token = getBearerToken(request);
+    const supabase = token ? getSupabaseUserClient(token) : undefined;
     const { source, content } = (await request.json()) as {
       source: string;
       content: string;
@@ -170,14 +172,14 @@ export async function POST(request: NextRequest) {
       source: source.trim(),
       content: content.trim(),
       embedding: [],
-    }, token ? getSupabaseUserClient(token) : undefined);
+    }, supabase);
 
-    await embedForStorage(user.id, source.trim(), content.trim(), doc.id);
+    await embedForStorage(user.id, source.trim(), content.trim(), doc.id, supabase);
 
     return NextResponse.json({
       id: doc.id,
       source: doc.source,
-      hasEmbedding: await isIndexed(doc.id),
+      hasEmbedding: await isIndexed(doc.id, supabase),
     });
   } catch (error) {
     return NextResponse.json(

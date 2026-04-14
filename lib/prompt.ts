@@ -6,16 +6,17 @@ Rules:
 2) Obey hard constraints: budget, guest count, location, season/date, priorities, alcohol preference, DIY willingness, and stated constraints.
 3) Explain tradeoffs explicitly when one choice pushes another category over budget.
 4) Avoid unrealistic recommendations that do not fit the stated constraints.
-5) Use the deterministic budget plan and retrieved vendor context as grounding.
+5) Use the deterministic budget plan and retrieved user notes as grounding.
 6) Support iterative refinements and treat follow-ups as modifications to the same wedding plan.
 7) Return a stable structure with sections: summary, budgetBreakdown, vendorSuggestions, tradeoffs, savingsOptions, nextSteps.
-8) Keep recommendations practical, price-aware, and easy to act on.`;
+8) Keep recommendations practical, price-aware, and easy to act on.
+9) Treat vendorSuggestions as a vendor tracker. Preserve contracted/not_contracted status from the structured suggestions and do not invent vendor names, quotes, or contracted status beyond retrieved user notes.`;
 
 function formatBudgetBreakdown(lineItems: BudgetLineItem[]) {
   return lineItems
     .map(
       (item) =>
-        `- ${item.category}: allocation ${item.allocation}, range ${item.estimatedRange}, rationale: ${item.rationale}`,
+        `- ${item.category}: amount ${item.allocation}, rationale: ${item.rationale}`,
     )
     .join("\n");
 }
@@ -25,9 +26,16 @@ function formatVendorSuggestions(vendors: VendorSuggestion[]) {
   return vendors
     .map(
       (vendor, index) =>
-        `[${index + 1}] ${vendor.category} | ${vendor.name} | ${vendor.region} | ${vendor.priceEstimate} | ${vendor.whyItFits}`,
+        `[${index + 1}] ${vendor.category} | ${vendor.status} | ${vendor.name} | ${vendor.region} | ${vendor.priceEstimate} | contact: ${vendor.contact} | source: ${vendor.source} | ${vendor.whyItFits}`,
     )
     .join("\n");
+}
+
+function formatPreviousOutput(input: GenerateRequest) {
+  if (!input.previousOutput) return "Previous Output\nNone";
+
+  return `Previous Output
+${JSON.stringify(input.previousOutput, null, 2)}`;
 }
 
 export function buildPrompt(input: GenerateRequest, context?: {
@@ -55,15 +63,11 @@ export function buildPrompt(input: GenerateRequest, context?: {
 - Report Type: ${input.options.reportType}
 - Cite Sources: ${input.options.citeSources ? "yes" : "no"}`;
 
-  const historySection = input.history.length
-    ? `Planning History\n${input.history.map((h, i) => `${i + 1}. ${h}`).join("\n")}`
-    : "Planning History\nNone";
-
   const calculatorSection = `Deterministic Budget Guidance\n${
     context?.budgetBreakdownText || "(none)"
   }`;
 
-  const vendorSection = `Structured Vendor / Venue Suggestions\n${
+  const vendorSection = `Structured Vendor / Venue Suggestions From Notes\n${
     formatVendorSuggestions(context?.vendorSuggestions || [])
   }`;
 
@@ -71,17 +75,25 @@ export function buildPrompt(input: GenerateRequest, context?: {
     context?.retrievedContextText || "(none)"
   }`;
 
-  const userSection = `Current Planning Request
+  const flowSection = input.previousOutput
+    ? `Generation Mode
+Revision. Use the previous output and the change request to produce a full updated plan, not a diff. Assume any part of the previous plan not mentioned in the change request should stay the same. Treat avoid instructions as part of the change request.`
+    : `Generation Mode
+Initial generation. Produce a full plan from the base task.`;
+
+  const userSection = `Base Task
 ${input.task}
 
-Refinement
-${input.refinement || "None"}`;
+${formatPreviousOutput(input)}
+
+Change Request
+${input.revisionRequest || "None"}`;
 
   return [
     WEDDING_SYSTEM_PROMPT,
     profileSection,
     optionsSection,
-    historySection,
+    flowSection,
     calculatorSection,
     vendorSection,
     retrievedContextSection,

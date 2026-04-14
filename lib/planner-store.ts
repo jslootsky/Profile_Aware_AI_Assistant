@@ -12,15 +12,21 @@ import { StoredSessionOutput, WeddingProfile } from "./types";
 type WeddingProfileRow = {
   user_id: string;
   profile_json: WeddingProfile;
+  custom_budget_sections?: WeddingProfile["customBudgetSections"] | null;
   updated_at: string;
 };
 
 type PlannerSessionRow = {
   id: string;
   user_id: string;
+  thread_id: string | null;
+  base_task: string | null;
+  previous_output_json: StoredSessionOutput["previousOutput"] | null;
+  current_output_json: StoredSessionOutput["currentOutput"] | null;
+  revision_request: string | null;
   task: string;
   refinement: string | null;
-  report_json: StoredSessionOutput["report"];
+  report_json: StoredSessionOutput["currentOutput"];
   rating: "up" | "down" | null;
   feedback: string | null;
   created_at: string;
@@ -30,9 +36,11 @@ function mapSessionRow(row: PlannerSessionRow): StoredSessionOutput {
   return {
     id: row.id,
     userId: row.user_id,
-    task: row.task,
-    refinement: row.refinement || "",
-    report: row.report_json,
+    threadId: row.thread_id || row.id,
+    baseTask: row.base_task || row.task,
+    previousOutput: row.previous_output_json || null,
+    currentOutput: row.current_output_json || row.report_json,
+    revisionRequest: row.revision_request || row.refinement || "",
     rating: row.rating || undefined,
     feedback: row.feedback || undefined,
     createdAt: row.created_at,
@@ -58,7 +66,13 @@ export async function getPlannerProfile(
     throw error;
   }
 
-  return data ? (data as WeddingProfileRow).profile_json : null;
+  if (!data) return null;
+  const row = data as WeddingProfileRow;
+  return {
+    ...row.profile_json,
+    customBudgetSections:
+      row.custom_budget_sections || row.profile_json.customBudgetSections || [],
+  };
 }
 
 export async function savePlannerProfile(
@@ -74,7 +88,11 @@ export async function savePlannerProfile(
   const { error } = await supabase.from("wedding_profiles").upsert(
     {
       user_id: userId,
-      profile_json: profile,
+      profile_json: {
+        ...profile,
+        customBudgetSections: profile.customBudgetSections || [],
+      },
+      custom_budget_sections: profile.customBudgetSections || [],
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },
@@ -97,9 +115,14 @@ export async function savePlannerSession(
   const { error } = await supabase.from("planner_sessions").insert({
     id: output.id,
     user_id: output.userId,
-    task: output.task,
-    refinement: output.refinement || null,
-    report_json: output.report,
+    thread_id: output.threadId,
+    base_task: output.baseTask,
+    previous_output_json: output.previousOutput || null,
+    current_output_json: output.currentOutput,
+    revision_request: output.revisionRequest || null,
+    task: output.baseTask,
+    refinement: output.revisionRequest || null,
+    report_json: output.currentOutput,
     rating: output.rating || null,
     feedback: output.feedback || null,
     created_at: output.createdAt,

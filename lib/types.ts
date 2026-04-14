@@ -44,6 +44,12 @@ export interface SurveyQuestion {
   options?: SurveyOption[];
 }
 
+export interface CustomBudgetSection {
+  category: string;
+  allocation: number;
+  rationale?: string;
+}
+
 export interface WeddingProfile {
   partnerNames: string;
   totalBudget: number;
@@ -59,6 +65,7 @@ export interface WeddingProfile {
   constraints: string;
   ceremonyType: string;
   cateringPreference: string;
+  customBudgetSections: CustomBudgetSection[];
   surveyStep: number;
   onboardingComplete: boolean;
 }
@@ -86,9 +93,10 @@ export interface RagDebugInfo {
 export interface GenerateRequest {
   profile: WeddingProfile;
   task: string;
-  refinement?: string;
+  threadId?: string;
+  previousOutput?: StructuredResponse | null;
+  revisionRequest?: string;
   options: RequestOptions;
-  history: string[];
 }
 
 export interface BudgetLineItem {
@@ -103,6 +111,9 @@ export interface VendorSuggestion {
   name: string;
   region: string;
   priceEstimate: string;
+  contact: string;
+  status: "contracted" | "not_contracted";
+  source: string;
   whyItFits: string;
 }
 
@@ -124,9 +135,11 @@ export interface StoredUser {
 export interface StoredSessionOutput {
   id: string;
   userId: string;
-  task: string;
-  refinement?: string;
-  report: StructuredResponse;
+  threadId: string;
+  baseTask: string;
+  previousOutput?: StructuredResponse | null;
+  currentOutput: StructuredResponse;
+  revisionRequest?: string;
   rating?: "up" | "down";
   feedback?: string;
   createdAt: string;
@@ -150,15 +163,3 @@ export interface WeddingCostPlan {
   savingsOptions: string[];
 }
 
-export interface VendorKnowledgeItem {
-  id: string;
-  category: string;
-  name: string;
-  region: string;
-  priceTier: "low" | "medium" | "high";
-  estimatedCost: string;
-  guestCapacity?: string;
-  styleTags: string[];
-  notes: string;
-  alcoholSupport?: string;
-}
