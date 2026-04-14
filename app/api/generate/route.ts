@@ -165,9 +165,10 @@ export async function POST(request: NextRequest) {
     const payload: GenerateRequest = {
       profile: mergeWeddingProfile(validation.profileValidation.profile),
       task,
-      refinement: incoming.refinement ?? "",
+      threadId: incoming.threadId,
+      previousOutput: incoming.previousOutput || null,
+      revisionRequest: incoming.revisionRequest ?? "",
       options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}) },
-      history: Array.isArray(incoming.history) ? incoming.history : [],
     };
 
     // Resolve user identity (cookie/header) and persist profile
@@ -181,14 +182,15 @@ export async function POST(request: NextRequest) {
 
     // Persist session
     const sessionId = crypto.randomUUID();
+    const threadId = payload.threadId || sessionId;
     await savePlannerSession({
       id: sessionId,
       userId: user.id,
-      task: payload.task,
-      refinement: payload.refinement,
-      // NOTE: Ensure StoredSessionOutput.report type matches result.response.
-      // If report should be a string, store JSON.stringify(result.response) instead.
-      report: result.response,
+      threadId,
+      baseTask: payload.task,
+      previousOutput: payload.previousOutput,
+      currentOutput: result.response,
+      revisionRequest: payload.revisionRequest,
       createdAt: new Date().toISOString(),
     }, supabase);
 
@@ -198,6 +200,7 @@ export async function POST(request: NextRequest) {
       response: result.response,
       debug: payload.options.ragDebug ? result.debug : undefined,
       sessionId,
+      threadId,
       userId: user.id,
     });
   } catch (error) {

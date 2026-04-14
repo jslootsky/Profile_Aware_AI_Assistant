@@ -86,9 +86,10 @@ export interface RagDebugInfo {
 export interface GenerateRequest {
   profile: WeddingProfile;
   task: string;
-  refinement?: string;
+  threadId?: string;
+  previousOutput?: StructuredResponse | null;
+  revisionRequest?: string;
   options: RequestOptions;
-  history: string[];
 }
 
 export interface BudgetLineItem {
@@ -124,9 +125,11 @@ export interface StoredUser {
 export interface StoredSessionOutput {
   id: string;
   userId: string;
-  task: string;
-  refinement?: string;
-  report: StructuredResponse;
+  threadId: string;
+  baseTask: string;
+  previousOutput?: StructuredResponse | null;
+  currentOutput: StructuredResponse;
+  revisionRequest?: string;
   rating?: "up" | "down";
   feedback?: string;
   createdAt: string;

@@ -12,6 +12,7 @@ import {
   GenerateRequest,
   RagDebugInfo,
   RequestOptions,
+  StoredSessionOutput,
   StructuredResponse,
   SurveyQuestion,
   WeddingProfile,
@@ -71,12 +72,13 @@ export function WeddingPlannerApp() {
 
   const [profile, setProfile] = useState<WeddingProfile>(DEFAULT_WEDDING_PROFILE);
   const [task, setTask] = useState("");
-  const [refinement, setRefinement] = useState("");
+  const [revisionRequest, setRevisionRequest] = useState("");
   const [options, setOptions] = useState<RequestOptions>(defaultOptions);
-  const [history, setHistory] = useState<string[]>([]);
+  const [revisions, setRevisions] = useState<StoredSessionOutput[]>([]);
   const [output, setOutput] = useState<StructuredResponse | null>(null);
   const [latestPrompt, setLatestPrompt] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [ragDebug, setRagDebug] = useState<RagDebugInfo | null>(null);
@@ -98,19 +100,22 @@ export function WeddingPlannerApp() {
   const canJumpBetweenQuestions = isOnboardingComplete && isEditingSurvey;
   const budgetSnapshot = useMemo(() => calculateWeddingBudget(profile), [profile]);
   const canSubmit = useMemo(
-    () => isOnboardingComplete && task.trim().length > 0,
-    [isOnboardingComplete, task],
+    () =>
+      isOnboardingComplete &&
+      (output ? revisionRequest.trim().length > 0 : task.trim().length > 0),
+    [isOnboardingComplete, output, revisionRequest, task],
   );
 
   function resetPlannerState() {
     setProfile(DEFAULT_WEDDING_PROFILE);
     setTask("");
-    setRefinement("");
+    setRevisionRequest("");
     setOptions(defaultOptions);
-    setHistory([]);
+    setRevisions([]);
     setOutput(null);
     setLatestPrompt("");
     setSessionId(null);
+    setThreadId(null);
     setUserId(null);
     setRagDebug(null);
     setKnowledgeSource("");
@@ -403,9 +408,10 @@ export function WeddingPlannerApp() {
     const payload: GenerateRequest = {
       profile,
       task,
-      refinement,
+      threadId: threadId || undefined,
+      previousOutput: output,
+      revisionRequest,
       options,
-      history,
     };
 
     try {
@@ -425,22 +431,32 @@ export function WeddingPlannerApp() {
         response: StructuredResponse;
         debug?: RagDebugInfo;
         sessionId: string;
+        threadId: string;
         userId: string;
       };
 
       setLatestPrompt(data.prompt);
       setOutput(data.response);
       setSessionId(data.sessionId);
+      setThreadId(data.threadId);
       setUserId(data.userId);
       setRagDebug(data.debug || null);
 
-      const sourceText = refinement.trim() || task.trim();
-      if (sourceText) {
-        setHistory((prev) => [...prev, sourceText]);
-      }
-      if (refinement.trim()) {
-        setRefinement("");
-      }
+      const now = new Date().toISOString();
+      setRevisions((prev) => [
+        {
+          id: data.sessionId,
+          userId: data.userId,
+          threadId: data.threadId,
+          baseTask: task,
+          previousOutput: output,
+          currentOutput: data.response,
+          revisionRequest: revisionRequest.trim(),
+          createdAt: now,
+        },
+        ...prev,
+      ]);
+      setRevisionRequest("");
     } catch (submitError) {
       setError(`Network error while planning: ${(submitError as Error).message}`);
     } finally {
@@ -462,7 +478,14 @@ export function WeddingPlannerApp() {
     if (!res.ok) {
       const text = await res.text();
       setError(`Feedback failed (${res.status}): ${text}`);
+      return;
     }
+
+    setRevisions((prev) =>
+      prev.map((revision) =>
+        revision.id === sessionId ? { ...revision, rating } : revision,
+      ),
+    );
   }
 
   async function upsertKnowledgeDoc() {
@@ -792,16 +815,21 @@ export function WeddingPlannerApp() {
               className="mt-1 h-32 w-full rounded-xl border p-3"
               value={task}
               onChange={(e) => setTask(e.target.value)}
+              disabled={Boolean(output)}
               placeholder="Build a practical wedding plan for our budget and guest count."
             />
 
-            <label className="mt-4 block text-sm font-medium">Refinement</label>
-            <input
-              className="mt-1 w-full rounded-xl border p-3"
-              value={refinement}
-              onChange={(e) => setRefinement(e.target.value)}
-              placeholder="Make this cheaper, adjust for 120 guests, prioritize food over decor."
-            />
+            {output && (
+              <>
+                <label className="mt-4 block text-sm font-medium">Revise this plan</label>
+                <textarea
+                  className="mt-1 h-28 w-full rounded-xl border p-3"
+                  value={revisionRequest}
+                  onChange={(e) => setRevisionRequest(e.target.value)}
+                  placeholder="Keep the food quality, change the guest count to 120, and avoid expensive florals."
+                />
+              </>
+            )}
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <SelectField
@@ -856,20 +884,40 @@ export function WeddingPlannerApp() {
                 onClick={() => void submitRequest()}
                 className="rounded-xl bg-rose-600 px-4 py-2 text-white disabled:opacity-50"
               >
-                {isGenerating ? <Spinner label="Planning..." /> : "Generate plan"}
+                {isGenerating ? (
+                  <Spinner label="Planning..." />
+                ) : output ? (
+                  "Revise plan"
+                ) : (
+                  "Generate plan"
+                )}
               </button>
               <QuickAction
                 label="Make this cheaper"
-                onClick={() => setTask("Make this cheaper without cutting food quality.")}
+                onClick={() =>
+                  output
+                    ? setRevisionRequest("Make this cheaper without cutting food quality.")
+                    : setTask("Build a cheaper plan without cutting food quality.")
+                }
               />
               <QuickAction
                 label="Adjust for 120 guests"
-                onClick={() => setTask("Adjust this plan for 120 guests and show tradeoffs.")}
+                onClick={() =>
+                  output
+                    ? setRevisionRequest("Adjust this plan for 120 guests and show tradeoffs.")
+                    : setTask("Build a plan for 120 guests and show tradeoffs.")
+                }
               />
               <QuickAction
                 label="Prioritize food over decor"
                 onClick={() =>
-                  setTask("Rebalance the plan to prioritize food over decor and explain the tradeoffs.")
+                  output
+                    ? setRevisionRequest(
+                        "Rebalance the plan to prioritize food over decor and explain the tradeoffs.",
+                      )
+                    : setTask(
+                        "Build a plan that prioritizes food over decor and explains the tradeoffs.",
+                      )
                 }
               />
             </div>
@@ -1003,7 +1051,7 @@ export function WeddingPlannerApp() {
                 </SectionCard>
               )}
               <SectionCard title="Revision History">
-                <BulletList items={history} emptyText="No prior refinements yet." />
+                <RevisionList revisions={revisions.slice(0, 3)} />
                 <div className="mt-3 flex gap-2">
                   <button
                     disabled={isGenerating}
@@ -1022,7 +1070,8 @@ export function WeddingPlannerApp() {
                 </div>
                 {(userId || sessionId) && (
                   <p className="mt-3 text-xs text-slate-500">
-                    userId: {userId || "pending"} | sessionId: {sessionId || "pending"}
+                    userId: {userId || "pending"} | threadId: {threadId || "pending"} |
+                    revisionId: {sessionId || "pending"}
                   </p>
                 )}
               </SectionCard>
@@ -1366,6 +1415,30 @@ function BulletList({ items, emptyText = "None." }: { items: string[]; emptyText
     <ul className="list-disc space-y-2 pl-5 text-sm text-slate-700">
       {items.map((line, idx) => (
         <li key={`${line}-${idx}`}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
+function RevisionList({ revisions }: { revisions: StoredSessionOutput[] }) {
+  if (!revisions.length) {
+    return <p className="text-sm text-slate-500">No revisions yet.</p>;
+  }
+
+  return (
+    <ul className="space-y-2 text-sm text-slate-700">
+      {revisions.map((revision, index) => (
+        <li key={revision.id} className="rounded-xl bg-slate-50 p-3">
+          <p className="font-medium">
+            {index === revisions.length - 1 && !revision.revisionRequest
+              ? "Initial plan"
+              : revision.revisionRequest || "Initial plan"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {new Date(revision.createdAt).toLocaleString()} | rating:{" "}
+            {revision.rating || "not rated"}
+          </p>
+        </li>
       ))}
     </ul>
   );

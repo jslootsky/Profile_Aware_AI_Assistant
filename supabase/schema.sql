@@ -26,6 +26,11 @@ end $$;
 create table if not exists public.planner_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
+  thread_id uuid,
+  base_task text,
+  previous_output_json jsonb,
+  current_output_json jsonb,
+  revision_request text,
   task text not null,
   refinement text,
   report_json jsonb not null,
@@ -50,8 +55,28 @@ begin
   end if;
 end $$;
 
+alter table public.planner_sessions
+  add column if not exists thread_id uuid,
+  add column if not exists base_task text,
+  add column if not exists previous_output_json jsonb,
+  add column if not exists current_output_json jsonb,
+  add column if not exists revision_request text;
+
+update public.planner_sessions
+set
+  thread_id = coalesce(thread_id, id),
+  base_task = coalesce(base_task, task),
+  current_output_json = coalesce(current_output_json, report_json),
+  revision_request = coalesce(revision_request, refinement)
+where thread_id is null
+   or base_task is null
+   or current_output_json is null;
+
 create index if not exists planner_sessions_user_id_idx
   on public.planner_sessions (user_id);
+
+create index if not exists planner_sessions_thread_id_idx
+  on public.planner_sessions (thread_id);
 
 create table if not exists public.knowledge_documents (
   id uuid primary key default gen_random_uuid(),

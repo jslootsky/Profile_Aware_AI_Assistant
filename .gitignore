@@ -43,6 +43,7 @@ uploads/
 # misc
 *.pem
 auth.md
+requirements.md
 
 #data
 data/store.json

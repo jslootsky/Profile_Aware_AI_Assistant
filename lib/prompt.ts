@@ -30,6 +30,13 @@ function formatVendorSuggestions(vendors: VendorSuggestion[]) {
     .join("\n");
 }
 
+function formatPreviousOutput(input: GenerateRequest) {
+  if (!input.previousOutput) return "Previous Output\nNone";
+
+  return `Previous Output
+${JSON.stringify(input.previousOutput, null, 2)}`;
+}
+
 export function buildPrompt(input: GenerateRequest, context?: {
   budgetBreakdownText?: string;
   vendorSuggestions?: VendorSuggestion[];
@@ -55,10 +62,6 @@ export function buildPrompt(input: GenerateRequest, context?: {
 - Report Type: ${input.options.reportType}
 - Cite Sources: ${input.options.citeSources ? "yes" : "no"}`;
 
-  const historySection = input.history.length
-    ? `Planning History\n${input.history.map((h, i) => `${i + 1}. ${h}`).join("\n")}`
-    : "Planning History\nNone";
-
   const calculatorSection = `Deterministic Budget Guidance\n${
     context?.budgetBreakdownText || "(none)"
   }`;
@@ -71,17 +74,25 @@ export function buildPrompt(input: GenerateRequest, context?: {
     context?.retrievedContextText || "(none)"
   }`;
 
-  const userSection = `Current Planning Request
+  const flowSection = input.previousOutput
+    ? `Generation Mode
+Revision. Use the previous output and the revision request to produce a full updated plan, not a diff.`
+    : `Generation Mode
+Initial generation. Produce a full plan from the base task.`;
+
+  const userSection = `Base Task
 ${input.task}
 
-Refinement
-${input.refinement || "None"}`;
+${formatPreviousOutput(input)}
+
+Revision Request
+${input.revisionRequest || "None"}`;
 
   return [
     WEDDING_SYSTEM_PROMPT,
     profileSection,
     optionsSection,
-    historySection,
+    flowSection,
     calculatorSection,
     vendorSection,
     retrievedContextSection,

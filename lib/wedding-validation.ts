@@ -71,6 +71,12 @@ export function validateGenerateRequest(input: Partial<GenerateRequest>) {
   if (!isNonEmptyString(input.task)) {
     errors.push("Task is required.");
   }
+  if (input.threadId && !input.previousOutput) {
+    errors.push("Previous output is required for revisions.");
+  }
+  if (input.previousOutput && !isNonEmptyString(input.revisionRequest)) {
+    errors.push("Revision request is required for revisions.");
+  }
 
   const profileValidation = validateWeddingProfile(input.profile || {}, {
     allowIncomplete: false,

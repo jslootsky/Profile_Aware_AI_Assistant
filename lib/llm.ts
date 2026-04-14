@@ -238,8 +238,9 @@ function fallbackResponse(
 
 function buildRetrievalQuery(input: GenerateRequest): string {
   return [
-    `Task: ${input.task}`,
-    `Refinement: ${input.refinement || "none"}`,
+    `Base Task: ${input.task}`,
+    `Revision Request: ${input.revisionRequest || "none"}`,
+    `Has Previous Output: ${input.previousOutput ? "yes" : "no"}`,
     `Budget: ${input.profile.totalBudget}`,
     `Guest Count: ${input.profile.guestCount}`,
     `Location: ${input.profile.location || "none"}`,

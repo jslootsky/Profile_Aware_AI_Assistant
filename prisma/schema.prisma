@@ -21,11 +21,14 @@ model UserProfile {
 }
 
 model SessionOutput {
-  id          String   @id @default(cuid())
-  profileId   String
-  task        String
-  refinement  String?
-  reportJson  Json
-  feedback    String?
-  createdAt   DateTime @default(now())
+  id                 String   @id @default(cuid())
+  profileId          String
+  threadId           String
+  baseTask           String
+  previousOutputJson Json?
+  currentOutputJson  Json
+  revisionRequest    String?
+  rating             String?
+  feedback           String?
+  createdAt          DateTime @default(now())
 }
