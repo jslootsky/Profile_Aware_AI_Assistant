@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     await savePlannerProfile(user.id, payload.profile, supabase);
 
     // Generate response (structured JSON or fallback)
-    const result = await generateStructuredResponse(user.id, payload);
+    const result = await generateStructuredResponse(user.id, payload, supabase);
 
     // Persist session
     const sessionId = crypto.randomUUID();

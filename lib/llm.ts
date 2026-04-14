@@ -138,6 +138,7 @@ import {
   calculateWeddingBudget,
 } from "./wedding-calculator";
 import { retrievePlanningContext } from "./wedding-retrieval";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-4";
 
@@ -253,13 +254,14 @@ function buildRetrievalQuery(input: GenerateRequest): string {
 export async function generateStructuredResponse(
   userId: string,
   input: GenerateRequest,
+  supabaseClient?: SupabaseClient,
 ) {
   const retrievalQuery = buildRetrievalQuery(input);
   const budgetPlan = calculateWeddingBudget(input.profile);
   const cheaperScenario = calculateScenarioAdjustments(input.profile, undefined, 0.1);
 
   const retrieval = input.options.citeSources
-    ? await retrievePlanningContext(userId, input.profile, retrievalQuery)
+    ? await retrievePlanningContext(userId, input.profile, retrievalQuery, supabaseClient)
     : {
         vendorSuggestions: [],
         documentRetrieval: { snippets: [], reason: "ok" as const },

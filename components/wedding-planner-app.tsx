@@ -76,9 +76,7 @@ export function WeddingPlannerApp() {
 
   const [profile, setProfile] = useState<WeddingProfile>(DEFAULT_WEDDING_PROFILE);
   const [task, setTask] = useState("");
-  const [revisionKeep, setRevisionKeep] = useState("");
   const [revisionChange, setRevisionChange] = useState("");
-  const [revisionAvoid, setRevisionAvoid] = useState("");
   const [options, setOptions] = useState<RequestOptions>(defaultOptions);
   const [revisions, setRevisions] = useState<StoredSessionOutput[]>([]);
   const [savedRevisions, setSavedRevisions] = useState<StoredSessionOutput[]>([]);
@@ -119,15 +117,8 @@ export function WeddingPlannerApp() {
     [output],
   );
   const revisionRequest = useMemo(
-    () =>
-      [
-        revisionKeep.trim() ? `Keep: ${revisionKeep.trim()}` : "",
-        revisionChange.trim() ? `Change: ${revisionChange.trim()}` : "",
-        revisionAvoid.trim() ? `Avoid: ${revisionAvoid.trim()}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    [revisionAvoid, revisionChange, revisionKeep],
+    () => revisionChange.trim(),
+    [revisionChange],
   );
   const canSubmit = useMemo(
     () =>
@@ -140,9 +131,7 @@ export function WeddingPlannerApp() {
   function resetPlannerState() {
     setProfile(DEFAULT_WEDDING_PROFILE);
     setTask("");
-    setRevisionKeep("");
     setRevisionChange("");
-    setRevisionAvoid("");
     setOptions(defaultOptions);
     setRevisions([]);
     setSavedRevisions([]);
@@ -406,9 +395,7 @@ export function WeddingPlannerApp() {
     setThreadId(revision.threadId);
     setUserId(revision.userId);
     setRevisions(threadRevisions.length ? threadRevisions : [revision]);
-    setRevisionKeep("");
     setRevisionChange("");
-    setRevisionAvoid("");
     setSaveStatus("Resumed your saved plan.");
   }
 
@@ -566,9 +553,7 @@ export function WeddingPlannerApp() {
       setRevisions((prev) => [revision, ...prev]);
       setSavedRevisions((saved) => [revision, ...saved]);
       setSaveStatus("Draft saved automatically.");
-      setRevisionKeep("");
       setRevisionChange("");
-      setRevisionAvoid("");
     } catch (submitError) {
       setError(`Network error while planning: ${(submitError as Error).message}`);
     } finally {
@@ -1049,26 +1034,15 @@ export function WeddingPlannerApp() {
             {output && (
               <>
                 <label className="mt-4 block text-sm font-medium">Revise this plan</label>
-                <div className="mt-2 grid gap-3 md:grid-cols-3">
-                  <RevisionField
-                    label="Keep"
-                    value={revisionKeep}
-                    onChange={setRevisionKeep}
-                    placeholder="Food quality, outdoor ceremony"
-                  />
-                  <RevisionField
-                    label="Change"
-                    value={revisionChange}
-                    onChange={setRevisionChange}
-                    placeholder="Guest count to 120"
-                  />
-                  <RevisionField
-                    label="Avoid"
-                    value={revisionAvoid}
-                    onChange={setRevisionAvoid}
-                    placeholder="Expensive florals"
-                  />
-                </div>
+                <p className="mt-1 text-sm text-slate-600">
+                  Describe only what should change. Anything not mentioned will be kept.
+                </p>
+                <RevisionField
+                  label="Change"
+                  value={revisionChange}
+                  onChange={setRevisionChange}
+                  placeholder="Adjust to 120 guests, avoid expensive florals, and show tradeoffs."
+                />
               </>
             )}
 

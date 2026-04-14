@@ -77,7 +77,7 @@ export function buildPrompt(input: GenerateRequest, context?: {
 
   const flowSection = input.previousOutput
     ? `Generation Mode
-Revision. Use the previous output and the revision request to produce a full updated plan, not a diff.`
+Revision. Use the previous output and the change request to produce a full updated plan, not a diff. Assume any part of the previous plan not mentioned in the change request should stay the same. Treat avoid instructions as part of the change request.`
     : `Generation Mode
 Initial generation. Produce a full plan from the base task.`;
 
@@ -86,7 +86,7 @@ ${input.task}
 
 ${formatPreviousOutput(input)}
 
-Revision Request
+Change Request
 ${input.revisionRequest || "None"}`;
 
   return [
