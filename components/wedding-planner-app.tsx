@@ -174,6 +174,8 @@ export function WeddingPlannerApp() {
   const [customVendor, setCustomVendor] = useState<VendorSuggestion>(emptyVendorDraft);
   const [customBudgetCategory, setCustomBudgetCategory] = useState("");
   const [customBudgetAmount, setCustomBudgetAmount] = useState("");
+  const [isEditingBudget, setIsEditingBudget] = useState(false);
+  const [editingVendorIndex, setEditingVendorIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [surveyStatus, setSurveyStatus] = useState<string | null>(null);
@@ -233,6 +235,8 @@ export function WeddingPlannerApp() {
     setCustomVendor(emptyVendorDraft);
     setCustomBudgetCategory("");
     setCustomBudgetAmount("");
+    setIsEditingBudget(false);
+    setEditingVendorIndex(null);
     setError(null);
     setSaveStatus(null);
     setSurveyStatus(null);
@@ -741,6 +745,7 @@ export function WeddingPlannerApp() {
 
     try {
       await saveKnowledgeNote(source, content);
+      setEditingVendorIndex(null);
       setVendorStatus(`Saved vendor note: ${vendor.name}.`);
     } catch (saveError) {
       setVendorStatus((saveError as Error).message);
@@ -780,6 +785,7 @@ export function WeddingPlannerApp() {
         formatVendorNote(vendor),
       );
       setCustomVendor(emptyVendorDraft);
+      setEditingVendorIndex(null);
       setVendorStatus(`Added vendor note: ${vendor.name}.`);
     } catch (saveError) {
       setVendorStatus((saveError as Error).message);
@@ -1575,62 +1581,81 @@ export function WeddingPlannerApp() {
               <SectionCard title="Tradeoffs">
                 <BulletList items={output.tradeoffs} />
               </SectionCard>
-              <SectionCard title="Budget Breakdown">
-                <div className="space-y-3">
+              <SectionCard
+                title="Budget Breakdown"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingBudget((value) => !value)}
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
+                  >
+                    {isEditingBudget ? "Done" : "Edit"}
+                  </button>
+                }
+              >
+                <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
                   {output.budgetBreakdown.map((item, index) => (
                     <div key={item.category} className="rounded-xl bg-slate-50 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{item.category}</p>
-                        <label className="flex items-center gap-2 text-sm text-slate-700">
-                          $
-                          <input
-                            className="w-28 rounded-lg border bg-white px-2 py-1 text-right"
-                            type="number"
-                            min={0}
-                            value={getBudgetAmount(item)}
-                            onChange={(event) =>
-                              updateBudgetItem(
-                                index,
-                                event.target.value === "" ? 0 : Number(event.target.value),
-                              )
-                            }
-                          />
-                        </label>
+                        {isEditingBudget ? (
+                          <label className="flex items-center gap-2 text-sm text-slate-700">
+                            $
+                            <input
+                              className="w-28 rounded-lg border bg-white px-2 py-1 text-right"
+                              type="number"
+                              min={0}
+                              value={getBudgetAmount(item)}
+                              onChange={(event) =>
+                                updateBudgetItem(
+                                  index,
+                                  event.target.value === "" ? 0 : Number(event.target.value),
+                                )
+                              }
+                            />
+                          </label>
+                        ) : (
+                          <p className="text-sm font-semibold text-slate-800">
+                            {formatCurrency(getBudgetAmount(item))}
+                          </p>
+                        )}
                       </div>
                       <p className="mt-1 text-sm text-slate-600">{item.rationale}</p>
                     </div>
                   ))}
-                  <div className="rounded-xl border border-dashed border-slate-300 p-3">
-                    <p className="text-sm font-medium">Add Custom Budget Section</p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
-                      <input
-                        className="rounded-lg border px-3 py-2 text-sm"
-                        placeholder="Section name"
-                        value={customBudgetCategory}
-                        onChange={(event) => setCustomBudgetCategory(event.target.value)}
-                      />
-                      <input
-                        className="rounded-lg border px-3 py-2 text-sm"
-                        placeholder="Amount"
-                        type="number"
-                        min={0}
-                        value={customBudgetAmount}
-                        onChange={(event) => setCustomBudgetAmount(event.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={addCustomBudgetSection}
-                        className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-                      >
-                        Add
-                      </button>
+                  {isEditingBudget && (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-3">
+                      <p className="text-sm font-medium">Add Custom Budget Section</p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
+                        <input
+                          className="rounded-lg border px-3 py-2 text-sm"
+                          placeholder="Section name"
+                          value={customBudgetCategory}
+                          onChange={(event) => setCustomBudgetCategory(event.target.value)}
+                        />
+                        <input
+                          className="rounded-lg border px-3 py-2 text-sm"
+                          placeholder="Amount"
+                          type="number"
+                          min={0}
+                          value={customBudgetAmount}
+                          onChange={(event) => setCustomBudgetAmount(event.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={addCustomBudgetSection}
+                          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                        >
+                          Add
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </SectionCard>
               <SectionCard title="Vendor Tracker">
                 {output.vendorSuggestions.length === 0 ? (
-                  <div className="space-y-3">
+                  <div className="max-h-[520px] space-y-3 overflow-y-auto pr-2">
                     <p className="text-sm text-slate-500">
                       Add vendor quotes, contracted vendors, or venue details in Notes to populate the vendor tracker.
                     </p>
@@ -1640,99 +1665,157 @@ export function WeddingPlannerApp() {
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="max-h-[520px] space-y-3 overflow-y-auto pr-2">
                     {output.vendorSuggestions.map((vendor, index) => (
                       <div key={`${vendor.category}-${vendor.name}`} className="rounded-xl bg-slate-50 p-3">
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <label className="text-xs font-medium text-slate-600">
-                            Category
-                            <select
-                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
-                              value={vendor.category}
-                              onChange={(event) =>
-                                updateVendor(index, { category: event.target.value })
-                              }
-                            >
-                              {vendorCategories.map((category) => (
-                                <option key={category} value={category}>
-                                  {category}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="text-xs font-medium text-slate-600">
-                            Status
-                            <select
-                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
-                              value={vendor.status}
-                              onChange={(event) =>
-                                updateVendor(index, {
-                                  status: event.target.value as VendorSuggestion["status"],
-                                })
-                              }
-                            >
-                              <option value="contracted">Contracted</option>
-                              <option value="not_contracted">Needs contract</option>
-                            </select>
-                          </label>
-                          <label className="text-xs font-medium text-slate-600">
-                            Vendor
-                            <input
-                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
-                              value={vendor.name}
-                              onChange={(event) =>
-                                updateVendor(index, { name: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="text-xs font-medium text-slate-600">
-                            Price
-                            <input
-                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
-                              value={vendor.priceEstimate}
-                              onChange={(event) =>
-                                updateVendor(index, { priceEstimate: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="text-xs font-medium text-slate-600">
-                            Region
-                            <input
-                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
-                              value={vendor.region}
-                              onChange={(event) =>
-                                updateVendor(index, { region: event.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="text-xs font-medium text-slate-600">
-                            Source
-                            <input
-                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
-                              value={vendor.source}
-                              onChange={(event) =>
-                                updateVendor(index, { source: event.target.value })
-                              }
-                            />
-                          </label>
-                        </div>
-                        <label className="mt-2 block text-xs font-medium text-slate-600">
-                          Notes
-                          <textarea
-                            className="mt-1 h-20 w-full rounded-lg border bg-white px-2 py-2 text-sm"
-                            value={vendor.whyItFits}
-                            onChange={(event) =>
-                              updateVendor(index, { whyItFits: event.target.value })
-                            }
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => void confirmVendor(vendor)}
-                          className="mt-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-                        >
-                          Confirm and Save to Notes
-                        </button>
+                        {editingVendorIndex === index ? (
+                          <>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <label className="text-xs font-medium text-slate-600">
+                                Category
+                                <select
+                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  value={vendor.category}
+                                  onChange={(event) =>
+                                    updateVendor(index, { category: event.target.value })
+                                  }
+                                >
+                                  {vendorCategories.map((category) => (
+                                    <option key={category} value={category}>
+                                      {category}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="text-xs font-medium text-slate-600">
+                                Status
+                                <select
+                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  value={vendor.status}
+                                  onChange={(event) =>
+                                    updateVendor(index, {
+                                      status: event.target.value as VendorSuggestion["status"],
+                                    })
+                                  }
+                                >
+                                  <option value="contracted">Contracted</option>
+                                  <option value="not_contracted">Needs contract</option>
+                                </select>
+                              </label>
+                              <label className="text-xs font-medium text-slate-600">
+                                Vendor
+                                <input
+                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  value={vendor.name}
+                                  onChange={(event) =>
+                                    updateVendor(index, { name: event.target.value })
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs font-medium text-slate-600">
+                                Price
+                                <input
+                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  value={vendor.priceEstimate}
+                                  onChange={(event) =>
+                                    updateVendor(index, { priceEstimate: event.target.value })
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs font-medium text-slate-600">
+                                Region
+                                <input
+                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  value={vendor.region}
+                                  onChange={(event) =>
+                                    updateVendor(index, { region: event.target.value })
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs font-medium text-slate-600">
+                                Source
+                                <input
+                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  value={vendor.source}
+                                  onChange={(event) =>
+                                    updateVendor(index, { source: event.target.value })
+                                  }
+                                />
+                              </label>
+                            </div>
+                            <label className="mt-2 block text-xs font-medium text-slate-600">
+                              Notes
+                              <textarea
+                                className="mt-1 h-20 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                value={vendor.whyItFits}
+                                onChange={(event) =>
+                                  updateVendor(index, { whyItFits: event.target.value })
+                                }
+                              />
+                            </label>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void confirmVendor(vendor)}
+                                className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                              >
+                                Confirm and Save to Notes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingVendorIndex(null)}
+                                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-medium text-slate-900">{vendor.name}</p>
+                                <p className="mt-1 text-xs uppercase tracking-wide text-rose-700">
+                                  {vendor.category} | {vendor.status === "contracted" ? "Contracted" : "Needs contract"}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                aria-label={`Edit ${vendor.name || vendor.category}`}
+                                onClick={() => setEditingVendorIndex(index)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-700"
+                              >
+                                <svg
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                >
+                                  <path d="M13.586 3.586a2 2 0 012.828 2.828l-8.5 8.5-3.536.707.707-3.536 8.5-8.5z" />
+                                  <path d="M4 16h12v1.5H4V16z" />
+                                </svg>
+                              </button>
+                            </div>
+                            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                              <div>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Price</dt>
+                                <dd className="text-slate-700">{vendor.priceEstimate || "not provided"}</dd>
+                              </div>
+                              <div>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Region</dt>
+                                <dd className="text-slate-700">{vendor.region || "not provided"}</dd>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Notes</dt>
+                                <dd className="line-clamp-3 text-slate-700">{vendor.whyItFits || "No notes."}</dd>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Source</dt>
+                                <dd className="text-slate-700">{vendor.source || "not provided"}</dd>
+                              </div>
+                            </dl>
+                          </>
+                        )}
                       </div>
                     ))}
                     {renderCustomVendorForm()}
@@ -2158,14 +2241,19 @@ function QuickAction({ label, onClick }: { label: string; onClick: () => void })
 
 function SectionCard({
   title,
+  action,
   children,
 }: {
   title: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 p-4">
-      <h3 className="font-semibold">{title}</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-semibold">{title}</h3>
+        {action}
+      </div>
       <div className="mt-3">{children}</div>
     </div>
   );
