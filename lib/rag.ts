@@ -119,6 +119,7 @@ import {
   removeDocumentFromVectorStore,
   isDocumentIndexed,
 } from "./vector-store";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface RetrievedSnippet {
   source: string;
@@ -251,15 +252,22 @@ export async function embedForStorage(
   source: string,
   content: string,
   documentId: string, // now required
+  supabaseClient?: SupabaseClient,
 ): Promise<void> {
   if (!process.env.OPENAI_API_KEY) return;
-  await addDocumentToVectorStore(userId, source, content, documentId);
+  await addDocumentToVectorStore(userId, source, content, documentId, supabaseClient);
 }
 
-export async function removeFromStorage(documentId: string): Promise<void> {
-  await removeDocumentFromVectorStore(documentId);
+export async function removeFromStorage(
+  documentId: string,
+  supabaseClient?: SupabaseClient,
+): Promise<void> {
+  await removeDocumentFromVectorStore(documentId, supabaseClient);
 }
 
-export async function isIndexed(documentId: string): Promise<boolean> {
-  return isDocumentIndexed(documentId);
+export async function isIndexed(
+  documentId: string,
+  supabaseClient?: SupabaseClient,
+): Promise<boolean> {
+  return isDocumentIndexed(documentId, supabaseClient);
 }

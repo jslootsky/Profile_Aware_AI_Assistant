@@ -526,9 +526,13 @@ export function WeddingPlannerApp() {
   }
 
   async function removeKnowledgeDoc(id: string) {
+    const previousDocs = knowledgeDocs;
+    setKnowledgeDocs((docs) => docs.filter((doc) => doc.id !== id));
+
     const res = await authorizedFetch(`/api/knowledge/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const text = await res.text();
+      setKnowledgeDocs(previousDocs);
       setKnowledgeStatus(`Delete failed (${res.status}): ${text}`);
       return;
     }

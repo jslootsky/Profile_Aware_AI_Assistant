@@ -34,7 +34,7 @@ export async function PUT(
     }
 
     if (content !== existing.content || source !== existing.source) {
-      await embedForStorage(user.id, source, content, params.id);
+      await embedForStorage(user.id, source, content, params.id, supabase);
     }
 
     const updated = await updateKnowledgeDocument(params.id, {
@@ -46,7 +46,7 @@ export async function PUT(
     return NextResponse.json({
       id: updated?.id,
       source: updated?.source,
-      hasEmbedding: await isIndexed(params.id),
+      hasEmbedding: await isIndexed(params.id, supabase),
     });
   } catch (error) {
     return NextResponse.json(
@@ -71,7 +71,7 @@ export async function DELETE(
     }
 
     await deleteKnowledgeDocument(params.id, supabase);
-    await removeFromStorage(params.id);
+    await removeFromStorage(params.id, supabase);
 
     return NextResponse.json({ deleted: true });
   } catch (error) {
