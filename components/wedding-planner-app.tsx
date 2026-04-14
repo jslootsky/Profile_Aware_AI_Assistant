@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { GoogleSignInLanding } from "@/components/google-sign-in-landing";
 import { UserMenu, type PlannerAuthUser } from "@/components/user-menu";
@@ -26,6 +26,10 @@ import {
 } from "@/lib/wedding-profile";
 import { calculateWeddingBudget } from "@/lib/wedding-calculator";
 import { validateWeddingProfile } from "@/lib/wedding-validation";
+import {
+  buildPlanningRequest,
+  DEFAULT_PLANNING_REQUEST,
+} from "@/lib/planning-request";
 
 interface KnowledgeDocView {
   id: string;
@@ -72,7 +76,9 @@ export function WeddingPlannerApp() {
 
   const [profile, setProfile] = useState<WeddingProfile>(DEFAULT_WEDDING_PROFILE);
   const [task, setTask] = useState("");
-  const [revisionRequest, setRevisionRequest] = useState("");
+  const [revisionKeep, setRevisionKeep] = useState("");
+  const [revisionChange, setRevisionChange] = useState("");
+  const [revisionAvoid, setRevisionAvoid] = useState("");
   const [options, setOptions] = useState<RequestOptions>(defaultOptions);
   const [revisions, setRevisions] = useState<StoredSessionOutput[]>([]);
   const [output, setOutput] = useState<StructuredResponse | null>(null);
@@ -85,12 +91,17 @@ export function WeddingPlannerApp() {
   const [knowledgeSource, setKnowledgeSource] = useState("");
   const [knowledgeContent, setKnowledgeContent] = useState("");
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeDocView[]>([]);
+  const [deletedNote, setDeletedNote] = useState<KnowledgeDocView | null>(null);
+  const [showDeleteToast, setShowDeleteToast] = useState(false);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [knowledgeStatus, setKnowledgeStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [surveyStatus, setSurveyStatus] = useState<string | null>(null);
   const [isSavingSurvey, setIsSavingSurvey] = useState(false);
   const [isEditingSurvey, setIsEditingSurvey] = useState(false);
+  const [showSurveySummary, setShowSurveySummary] = useState(false);
+  const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const taskEditedRef = useRef(false);
 
   const currentStep = Math.min(profile.surveyStep, weddingSurveySchema.length - 1);
   const currentQuestion = weddingSurveySchema[currentStep];
@@ -105,6 +116,17 @@ export function WeddingPlannerApp() {
       0,
     [output],
   );
+  const revisionRequest = useMemo(
+    () =>
+      [
+        revisionKeep.trim() ? `Keep: ${revisionKeep.trim()}` : "",
+        revisionChange.trim() ? `Change: ${revisionChange.trim()}` : "",
+        revisionAvoid.trim() ? `Avoid: ${revisionAvoid.trim()}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    [revisionAvoid, revisionChange, revisionKeep],
+  );
   const canSubmit = useMemo(
     () =>
       isOnboardingComplete &&
@@ -115,7 +137,9 @@ export function WeddingPlannerApp() {
   function resetPlannerState() {
     setProfile(DEFAULT_WEDDING_PROFILE);
     setTask("");
-    setRevisionRequest("");
+    setRevisionKeep("");
+    setRevisionChange("");
+    setRevisionAvoid("");
     setOptions(defaultOptions);
     setRevisions([]);
     setOutput(null);
@@ -127,14 +151,23 @@ export function WeddingPlannerApp() {
     setKnowledgeSource("");
     setKnowledgeContent("");
     setKnowledgeDocs([]);
+    setDeletedNote(null);
+    setShowDeleteToast(false);
     setEditingDocId(null);
     setKnowledgeStatus(null);
     setError(null);
     setSurveyStatus(null);
     setIsSavingSurvey(false);
     setIsEditingSurvey(false);
+    setShowSurveySummary(false);
     setIsGenerating(false);
     setAvatarStatus(null);
+    taskEditedRef.current = false;
+  }
+
+  function updateBaseTask(value: string) {
+    taskEditedRef.current = true;
+    setTask(value);
   }
 
   function applySession(session: Session | null) {
@@ -214,6 +247,22 @@ export function WeddingPlannerApp() {
       subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    return () => {
+      if (deleteToastTimer.current) {
+        clearTimeout(deleteToastTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOnboardingComplete || output || taskEditedRef.current || task.trim()) {
+      return;
+    }
+
+    setTask(buildPlanningRequest(profile));
+  }, [isOnboardingComplete, output, profile, task]);
 
   useEffect(() => {
     if (!authToken) {
@@ -395,10 +444,14 @@ export function WeddingPlannerApp() {
         return;
       }
 
-      await persistProfile(
+      const shouldShowCompletion = !isOnboardingComplete;
+      const saved = await persistProfile(
         fullValidation.profile,
         "Survey complete. Wedding planning is ready.",
       );
+      if (saved && shouldShowCompletion) {
+        setShowSurveySummary(true);
+      }
       setIsEditingSurvey(false);
       return;
     }
@@ -462,7 +515,9 @@ export function WeddingPlannerApp() {
         },
         ...prev,
       ]);
-      setRevisionRequest("");
+      setRevisionKeep("");
+      setRevisionChange("");
+      setRevisionAvoid("");
     } catch (submitError) {
       setError(`Network error while planning: ${(submitError as Error).message}`);
     } finally {
@@ -527,6 +582,7 @@ export function WeddingPlannerApp() {
 
   async function removeKnowledgeDoc(id: string) {
     const previousDocs = knowledgeDocs;
+    const removedDoc = knowledgeDocs.find((doc) => doc.id === id);
     setKnowledgeDocs((docs) => docs.filter((doc) => doc.id !== id));
 
     const res = await authorizedFetch(`/api/knowledge/${id}`, { method: "DELETE" });
@@ -537,6 +593,53 @@ export function WeddingPlannerApp() {
       return;
     }
     setKnowledgeStatus("Knowledge note deleted.");
+    if (removedDoc) {
+      showUndoDeleteToast(removedDoc);
+    }
+  }
+
+  function showUndoDeleteToast(note: KnowledgeDocView) {
+    if (deleteToastTimer.current) {
+      clearTimeout(deleteToastTimer.current);
+    }
+
+    setDeletedNote(note);
+    setShowDeleteToast(true);
+    deleteToastTimer.current = setTimeout(() => {
+      setShowDeleteToast(false);
+      setDeletedNote(null);
+      deleteToastTimer.current = null;
+    }, 5000);
+  }
+
+  async function undoDeleteNote() {
+    if (!deletedNote) return;
+
+    const noteToRestore = deletedNote;
+    if (deleteToastTimer.current) {
+      clearTimeout(deleteToastTimer.current);
+      deleteToastTimer.current = null;
+    }
+    setShowDeleteToast(false);
+    setDeletedNote(null);
+    setKnowledgeDocs((docs) => [noteToRestore, ...docs]);
+
+    const res = await authorizedFetch("/api/knowledge", {
+      method: "POST",
+      body: JSON.stringify({
+        source: noteToRestore.source,
+        content: noteToRestore.content,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      setKnowledgeDocs((docs) => docs.filter((doc) => doc.id !== noteToRestore.id));
+      setKnowledgeStatus(`Undo failed (${res.status}): ${text}`);
+      return;
+    }
+
+    setKnowledgeStatus("Knowledge note restored.");
     await loadKnowledgeDocs();
   }
 
@@ -563,6 +666,64 @@ export function WeddingPlannerApp() {
         authConfigured={Boolean(supabase)}
         error={authError}
       />
+    );
+  }
+
+  if (showSurveySummary) {
+    return (
+      <main className="min-h-screen bg-[linear-gradient(160deg,#fff7ed_0%,#fff1f2_50%,#ffffff_100%)] p-6 text-slate-900">
+        <div className="mx-auto max-w-6xl">
+          <AuthenticatedTopBar
+            user={authUser}
+            onSignOut={handleSignOut}
+            onUploadAvatar={handleAvatarUpload}
+            isSigningOut={isSigningOut}
+          />
+        </div>
+        <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-4xl items-center justify-center">
+          <section className="w-full rounded-[2rem] bg-white p-8 shadow-xl ring-1 ring-rose-100">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-rose-600">
+              Survey Complete
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold leading-tight">
+              Your planning profile is ready.
+            </h1>
+            <p className="mt-3 max-w-2xl text-base text-slate-600">
+              The planner will use these details to keep recommendations grounded in your budget, guest count, priorities, and constraints.
+            </p>
+
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <SummaryTile label="Budget" value={`$${profile.totalBudget.toLocaleString()}`} />
+              <SummaryTile label="Guests" value={String(profile.guestCount)} />
+              <SummaryTile label="Location" value={profile.location || "Not set"} />
+              <SummaryTile label="Budget / Guest" value={`$${budgetSnapshot.budgetPerGuest}`} />
+              <SummaryTile
+                label="Priorities"
+                value={profile.priorities.map(formatPriorityLabel).join(", ") || "None"}
+              />
+              <SummaryTile label="Style" value={profile.style || "Not set"} />
+            </div>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button
+                onClick={() => setShowSurveySummary(false)}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-white"
+              >
+                Start planning
+              </button>
+              <button
+                onClick={() => {
+                  setShowSurveySummary(false);
+                  setIsEditingSurvey(true);
+                }}
+                className="rounded-xl border px-4 py-2"
+              >
+                Review answers
+              </button>
+            </div>
+          </section>
+        </div>
+      </main>
     );
   }
 
@@ -820,24 +981,43 @@ export function WeddingPlannerApp() {
               </div>
             )}
 
-            <label className="mt-4 block text-sm font-medium">Planning request</label>
+            <label className="mt-4 block text-sm font-medium">What to plan</label>
+            <p className="mt-1 text-sm text-slate-600">
+              Based on your profile - edit anything before generating.
+            </p>
             <textarea
               className="mt-1 h-32 w-full rounded-xl border p-3"
               value={task}
-              onChange={(e) => setTask(e.target.value)}
+              onChange={(e) => {
+                updateBaseTask(e.target.value);
+              }}
               disabled={Boolean(output)}
-              placeholder="Build a practical wedding plan for our budget and guest count."
+              placeholder={DEFAULT_PLANNING_REQUEST}
             />
 
             {output && (
               <>
                 <label className="mt-4 block text-sm font-medium">Revise this plan</label>
-                <textarea
-                  className="mt-1 h-28 w-full rounded-xl border p-3"
-                  value={revisionRequest}
-                  onChange={(e) => setRevisionRequest(e.target.value)}
-                  placeholder="Keep the food quality, change the guest count to 120, and avoid expensive florals."
-                />
+                <div className="mt-2 grid gap-3 md:grid-cols-3">
+                  <RevisionField
+                    label="Keep"
+                    value={revisionKeep}
+                    onChange={setRevisionKeep}
+                    placeholder="Food quality, outdoor ceremony"
+                  />
+                  <RevisionField
+                    label="Change"
+                    value={revisionChange}
+                    onChange={setRevisionChange}
+                    placeholder="Guest count to 120"
+                  />
+                  <RevisionField
+                    label="Avoid"
+                    value={revisionAvoid}
+                    onChange={setRevisionAvoid}
+                    placeholder="Expensive florals"
+                  />
+                </div>
               </>
             )}
 
@@ -906,26 +1086,26 @@ export function WeddingPlannerApp() {
                 label="Make this cheaper"
                 onClick={() =>
                   output
-                    ? setRevisionRequest("Make this cheaper without cutting food quality.")
-                    : setTask("Build a cheaper plan without cutting food quality.")
+                    ? setRevisionChange("Make this cheaper without cutting food quality.")
+                    : updateBaseTask("Build a cheaper plan without cutting food quality.")
                 }
               />
               <QuickAction
                 label="Adjust for 120 guests"
                 onClick={() =>
                   output
-                    ? setRevisionRequest("Adjust this plan for 120 guests and show tradeoffs.")
-                    : setTask("Build a plan for 120 guests and show tradeoffs.")
+                    ? setRevisionChange("Adjust this plan for 120 guests and show tradeoffs.")
+                    : updateBaseTask("Build a plan for 120 guests and show tradeoffs.")
                 }
               />
               <QuickAction
                 label="Prioritize food over decor"
                 onClick={() =>
                   output
-                    ? setRevisionRequest(
+                    ? setRevisionChange(
                         "Rebalance the plan to prioritize food over decor and explain the tradeoffs.",
                       )
-                    : setTask(
+                    : updateBaseTask(
                         "Build a plan that prioritizes food over decor and explains the tradeoffs.",
                       )
                 }
@@ -1107,6 +1287,33 @@ export function WeddingPlannerApp() {
             </div>
           )}
         </section>
+        {showDeleteToast && deletedNote && (
+          <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-xl bg-slate-950 p-4 text-sm text-white shadow-xl">
+            <div className="flex items-center gap-3">
+              <p className="font-medium">Note deleted. Undo?</p>
+              <button
+                onClick={() => void undoDeleteNote()}
+                className="rounded border border-white/30 px-3 py-1 font-medium"
+              >
+                Undo
+              </button>
+              <button
+                aria-label="Dismiss deleted note message"
+                onClick={() => {
+                  if (deleteToastTimer.current) {
+                    clearTimeout(deleteToastTimer.current);
+                    deleteToastTimer.current = null;
+                  }
+                  setShowDeleteToast(false);
+                  setDeletedNote(null);
+                }}
+                className="rounded border border-white/30 px-2 py-1"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
@@ -1367,6 +1574,30 @@ function FormField({
   );
 }
 
+function RevisionField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium">{label}</label>
+      <textarea
+        className="mt-1 h-24 w-full rounded-xl border p-3 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -1392,6 +1623,17 @@ function SelectField({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
 }

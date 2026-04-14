@@ -44,6 +44,7 @@ uploads/
 *.pem
 auth.md
 requirements.md
+ux_flow.md
 
 #data
 data/store.json
