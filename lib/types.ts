@@ -104,6 +104,8 @@ export interface VendorSuggestion {
   name: string;
   region: string;
   priceEstimate: string;
+  status: "contracted" | "not_contracted";
+  source: string;
   whyItFits: string;
 }
 

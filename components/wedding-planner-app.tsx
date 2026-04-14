@@ -10,11 +10,13 @@ import {
 } from "@/lib/supabase-browser";
 import {
   GenerateRequest,
+  BudgetLineItem,
   RagDebugInfo,
   RequestOptions,
   StoredSessionOutput,
   StructuredResponse,
   SurveyQuestion,
+  VendorSuggestion,
   WeddingProfile,
 } from "@/lib/types";
 import { weddingSurveySchema } from "@/lib/wedding-survey-schema";
@@ -37,6 +39,80 @@ interface KnowledgeDocView {
   content: string;
   createdAt: string;
   hasEmbedding: boolean;
+}
+
+const vendorCategories = [
+  "Venue",
+  "Photographer",
+  "Videographer",
+  "Catering",
+  "Coordinator",
+  "Music / DJ",
+  "Florals / Decor",
+  "Wedding Dress",
+  "Wedding Suit",
+  "Hair / Makeup / Beauty",
+  "Dessert / Cake",
+  "Rentals",
+  "Other",
+];
+
+const emptyVendorDraft: VendorSuggestion = {
+  category: "Other",
+  name: "",
+  region: "",
+  priceEstimate: "",
+  status: "not_contracted",
+  source: "Manual vendor tracker",
+  whyItFits: "",
+};
+
+function formatCurrency(value: number) {
+  return `$${Math.round(value || 0).toLocaleString()}`;
+}
+
+function getBudgetAmount(item: BudgetLineItem) {
+  const values = item.estimatedRange.match(/\$?\s?\d[\d,]*/g);
+  if (!values?.length) return Math.round(item.allocation || 0);
+  const numericValues = values
+    .map((value) => Number(value.replace(/[$,\s]/g, "")))
+    .filter(Number.isFinite);
+  return numericValues.length
+    ? Math.max(...numericValues)
+    : Math.round(item.allocation || 0);
+}
+
+function normalizeBudgetLineItem(item: BudgetLineItem): BudgetLineItem {
+  const amount = getBudgetAmount(item);
+  return {
+    ...item,
+    allocation: amount,
+    estimatedRange: formatCurrency(amount),
+  };
+}
+
+function normalizeStructuredResponse(response: StructuredResponse): StructuredResponse {
+  return {
+    ...response,
+    budgetBreakdown: response.budgetBreakdown.map(normalizeBudgetLineItem),
+    vendorSuggestions: response.vendorSuggestions.map((vendor) => ({
+      ...vendor,
+      status: vendor.status || "not_contracted",
+      source: vendor.source || "Legacy planner output",
+    })),
+  };
+}
+
+function formatVendorNote(vendor: VendorSuggestion) {
+  return [
+    `Category: ${vendor.category}`,
+    `Vendor: ${vendor.name}`,
+    `Region: ${vendor.region || "not provided"}`,
+    `Price: ${vendor.priceEstimate || "not provided"}`,
+    `Status: ${vendor.status}`,
+    `Source: ${vendor.source || "Manual vendor tracker"}`,
+    `Notes: ${vendor.whyItFits || "No additional notes."}`,
+  ].join("\n");
 }
 
 const defaultOptions: RequestOptions = {
@@ -94,6 +170,10 @@ export function WeddingPlannerApp() {
   const [showDeleteToast, setShowDeleteToast] = useState(false);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [knowledgeStatus, setKnowledgeStatus] = useState<string | null>(null);
+  const [vendorStatus, setVendorStatus] = useState<string | null>(null);
+  const [customVendor, setCustomVendor] = useState<VendorSuggestion>(emptyVendorDraft);
+  const [customBudgetCategory, setCustomBudgetCategory] = useState("");
+  const [customBudgetAmount, setCustomBudgetAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [surveyStatus, setSurveyStatus] = useState<string | null>(null);
@@ -112,10 +192,11 @@ export function WeddingPlannerApp() {
   const budgetSnapshot = useMemo(() => calculateWeddingBudget(profile), [profile]);
   const planTotal = useMemo(
     () =>
-      output?.budgetBreakdown.reduce((total, item) => total + item.allocation, 0) ??
+      output?.budgetBreakdown.reduce((total, item) => total + getBudgetAmount(item), 0) ??
       0,
     [output],
   );
+  const isPlanWithinBudget = planTotal <= profile.totalBudget;
   const revisionRequest = useMemo(
     () => revisionChange.trim(),
     [revisionChange],
@@ -148,6 +229,10 @@ export function WeddingPlannerApp() {
     setShowDeleteToast(false);
     setEditingDocId(null);
     setKnowledgeStatus(null);
+    setVendorStatus(null);
+    setCustomVendor(emptyVendorDraft);
+    setCustomBudgetCategory("");
+    setCustomBudgetAmount("");
     setError(null);
     setSaveStatus(null);
     setSurveyStatus(null);
@@ -389,7 +474,7 @@ export function WeddingPlannerApp() {
 
     setTask(revision.baseTask);
     taskEditedRef.current = true;
-    setOutput(revision.currentOutput);
+    setOutput(normalizeStructuredResponse(revision.currentOutput));
     setLatestPrompt("");
     setSessionId(revision.id);
     setThreadId(revision.threadId);
@@ -533,8 +618,10 @@ export function WeddingPlannerApp() {
         userId: string;
       };
 
+      const normalizedResponse = normalizeStructuredResponse(data.response);
+
       setLatestPrompt(data.prompt);
-      setOutput(data.response);
+      setOutput(normalizedResponse);
       setSessionId(data.sessionId);
       setThreadId(data.threadId);
       setUserId(data.userId);
@@ -546,7 +633,7 @@ export function WeddingPlannerApp() {
         threadId: data.threadId,
         baseTask: task,
         previousOutput: output,
-        currentOutput: data.response,
+        currentOutput: normalizedResponse,
         revisionRequest: revisionRequest.trim(),
         createdAt: new Date().toISOString(),
       };
@@ -614,6 +701,232 @@ export function WeddingPlannerApp() {
     setKnowledgeContent("");
     setEditingDocId(null);
     await loadKnowledgeDocs();
+  }
+
+  async function saveKnowledgeNote(source: string, content: string) {
+    const res = await authorizedFetch("/api/knowledge", {
+      method: "POST",
+      body: JSON.stringify({ source, content }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Save failed (${res.status}): ${text}`);
+    }
+
+    await loadKnowledgeDocs();
+  }
+
+  function updateVendor(index: number, patch: Partial<VendorSuggestion>) {
+    setOutput((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        vendorSuggestions: current.vendorSuggestions.map((vendor, vendorIndex) =>
+          vendorIndex === index ? { ...vendor, ...patch } : vendor,
+        ),
+      };
+    });
+  }
+
+  async function confirmVendor(vendor: VendorSuggestion) {
+    setVendorStatus(null);
+    if (!vendor.name.trim()) {
+      setVendorStatus("Vendor name is required before saving to notes.");
+      return;
+    }
+
+    const source = `Vendor Tracker - ${vendor.category} - ${vendor.name}`;
+    const content = formatVendorNote(vendor);
+
+    try {
+      await saveKnowledgeNote(source, content);
+      setVendorStatus(`Saved vendor note: ${vendor.name}.`);
+    } catch (saveError) {
+      setVendorStatus((saveError as Error).message);
+    }
+  }
+
+  async function addCustomVendor() {
+    setVendorStatus(null);
+    const vendor: VendorSuggestion = {
+      ...customVendor,
+      name: customVendor.name.trim(),
+      region: customVendor.region.trim() || profile.location || "not provided",
+      priceEstimate: customVendor.priceEstimate.trim() || "not provided",
+      source: "Manual vendor tracker",
+      whyItFits:
+        customVendor.whyItFits.trim() ||
+        "Manually added by the user in the vendor tracker.",
+    };
+
+    if (!vendor.name) {
+      setVendorStatus("Vendor name is required before adding a custom vendor.");
+      return;
+    }
+
+    setOutput((current) =>
+      current
+        ? {
+            ...current,
+            vendorSuggestions: [...current.vendorSuggestions, vendor],
+          }
+        : current,
+    );
+
+    try {
+      await saveKnowledgeNote(
+        `Vendor Tracker - ${vendor.category} - ${vendor.name}`,
+        formatVendorNote(vendor),
+      );
+      setCustomVendor(emptyVendorDraft);
+      setVendorStatus(`Added vendor note: ${vendor.name}.`);
+    } catch (saveError) {
+      setVendorStatus((saveError as Error).message);
+    }
+  }
+
+  function updateBudgetItem(index: number, nextAmount: number) {
+    setOutput((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        budgetBreakdown: current.budgetBreakdown.map((item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                allocation: nextAmount,
+                estimatedRange: formatCurrency(nextAmount),
+              }
+            : item,
+        ),
+      };
+    });
+  }
+
+  function addCustomBudgetSection() {
+    const category = customBudgetCategory.trim();
+    const amount = Number(customBudgetAmount);
+    if (!category || !Number.isFinite(amount) || amount < 0) {
+      setError("Enter a custom budget category and a single non-negative number.");
+      return;
+    }
+
+    setOutput((current) =>
+      current
+        ? {
+            ...current,
+            budgetBreakdown: [
+              ...current.budgetBreakdown,
+              {
+                category,
+                allocation: Math.round(amount),
+                estimatedRange: formatCurrency(amount),
+                rationale: "Custom budget section added by the user.",
+              },
+            ],
+          }
+        : current,
+    );
+    setCustomBudgetCategory("");
+    setCustomBudgetAmount("");
+    setError(null);
+  }
+
+  function renderCustomVendorForm() {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-300 p-3">
+        <p className="text-sm font-medium">Add Custom Vendor</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className="text-xs font-medium text-slate-600">
+            Category
+            <select
+              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+              value={customVendor.category}
+              onChange={(event) =>
+                setCustomVendor((vendor) => ({
+                  ...vendor,
+                  category: event.target.value,
+                }))
+              }
+            >
+              {vendorCategories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            Status
+            <select
+              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+              value={customVendor.status}
+              onChange={(event) =>
+                setCustomVendor((vendor) => ({
+                  ...vendor,
+                  status: event.target.value as VendorSuggestion["status"],
+                }))
+              }
+            >
+              <option value="contracted">Contracted</option>
+              <option value="not_contracted">Needs contract</option>
+            </select>
+          </label>
+          <input
+            className="rounded-lg border px-3 py-2 text-sm"
+            placeholder="Vendor name"
+            value={customVendor.name}
+            onChange={(event) =>
+              setCustomVendor((vendor) => ({
+                ...vendor,
+                name: event.target.value,
+              }))
+            }
+          />
+          <input
+            className="rounded-lg border px-3 py-2 text-sm"
+            placeholder="Price"
+            value={customVendor.priceEstimate}
+            onChange={(event) =>
+              setCustomVendor((vendor) => ({
+                ...vendor,
+                priceEstimate: event.target.value,
+              }))
+            }
+          />
+          <input
+            className="rounded-lg border px-3 py-2 text-sm"
+            placeholder={`Region (${profile.location || "optional"})`}
+            value={customVendor.region}
+            onChange={(event) =>
+              setCustomVendor((vendor) => ({
+                ...vendor,
+                region: event.target.value,
+              }))
+            }
+          />
+          <input
+            className="rounded-lg border px-3 py-2 text-sm"
+            placeholder="Notes"
+            value={customVendor.whyItFits}
+            onChange={(event) =>
+              setCustomVendor((vendor) => ({
+                ...vendor,
+                whyItFits: event.target.value,
+              }))
+            }
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => void addCustomVendor()}
+          className="mt-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+        >
+          Add Vendor and Save to Notes
+        </button>
+      </div>
+    );
   }
 
   async function removeKnowledgeDoc(id: string) {
@@ -1247,8 +1560,15 @@ export function WeddingPlannerApp() {
           ) : (
             <div className="mt-4 grid gap-6 lg:grid-cols-2">
               <SectionCard title="Summary">
-                <p className="mb-3 text-2xl font-semibold text-slate-900">
+                <p
+                  className={`mb-1 text-2xl font-semibold ${
+                    isPlanWithinBudget ? "text-emerald-700" : "text-red-700"
+                  }`}
+                >
                   Total price: ${planTotal.toLocaleString()}
+                </p>
+                <p className="mb-3 text-xs text-slate-500">
+                  Stated budget: ${profile.totalBudget.toLocaleString()}
                 </p>
                 <p className="text-sm leading-6 text-slate-700">{output.summary}</p>
               </SectionCard>
@@ -1257,36 +1577,168 @@ export function WeddingPlannerApp() {
               </SectionCard>
               <SectionCard title="Budget Breakdown">
                 <div className="space-y-3">
-                  {output.budgetBreakdown.map((item) => (
+                  {output.budgetBreakdown.map((item, index) => (
                     <div key={item.category} className="rounded-xl bg-slate-50 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{item.category}</p>
-                        <p className="text-sm text-slate-700">{item.estimatedRange}</p>
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          $
+                          <input
+                            className="w-28 rounded-lg border bg-white px-2 py-1 text-right"
+                            type="number"
+                            min={0}
+                            value={getBudgetAmount(item)}
+                            onChange={(event) =>
+                              updateBudgetItem(
+                                index,
+                                event.target.value === "" ? 0 : Number(event.target.value),
+                              )
+                            }
+                          />
+                        </label>
                       </div>
                       <p className="mt-1 text-sm text-slate-600">{item.rationale}</p>
                     </div>
                   ))}
+                  <div className="rounded-xl border border-dashed border-slate-300 p-3">
+                    <p className="text-sm font-medium">Add Custom Budget Section</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
+                      <input
+                        className="rounded-lg border px-3 py-2 text-sm"
+                        placeholder="Section name"
+                        value={customBudgetCategory}
+                        onChange={(event) => setCustomBudgetCategory(event.target.value)}
+                      />
+                      <input
+                        className="rounded-lg border px-3 py-2 text-sm"
+                        placeholder="Amount"
+                        type="number"
+                        min={0}
+                        value={customBudgetAmount}
+                        onChange={(event) => setCustomBudgetAmount(event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomBudgetSection}
+                        className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </SectionCard>
-              <SectionCard title="Vendor Suggestions">
+              <SectionCard title="Vendor Tracker">
                 {output.vendorSuggestions.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    Add vendor quotes or venue details in Notes to ground vendor suggestions.
-                  </p>
+                  <div className="space-y-3">
+                    <p className="text-sm text-slate-500">
+                      Add vendor quotes, contracted vendors, or venue details in Notes to populate the vendor tracker.
+                    </p>
+                    {renderCustomVendorForm()}
+                    {vendorStatus && (
+                      <p className="text-sm text-slate-600">{vendorStatus}</p>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-3">
-                    {output.vendorSuggestions.map((vendor) => (
+                    {output.vendorSuggestions.map((vendor, index) => (
                       <div key={`${vendor.category}-${vendor.name}`} className="rounded-xl bg-slate-50 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-medium">{vendor.name}</p>
-                          <p className="text-sm text-slate-600">{vendor.priceEstimate}</p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="text-xs font-medium text-slate-600">
+                            Category
+                            <select
+                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                              value={vendor.category}
+                              onChange={(event) =>
+                                updateVendor(index, { category: event.target.value })
+                              }
+                            >
+                              {vendorCategories.map((category) => (
+                                <option key={category} value={category}>
+                                  {category}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="text-xs font-medium text-slate-600">
+                            Status
+                            <select
+                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                              value={vendor.status}
+                              onChange={(event) =>
+                                updateVendor(index, {
+                                  status: event.target.value as VendorSuggestion["status"],
+                                })
+                              }
+                            >
+                              <option value="contracted">Contracted</option>
+                              <option value="not_contracted">Needs contract</option>
+                            </select>
+                          </label>
+                          <label className="text-xs font-medium text-slate-600">
+                            Vendor
+                            <input
+                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                              value={vendor.name}
+                              onChange={(event) =>
+                                updateVendor(index, { name: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="text-xs font-medium text-slate-600">
+                            Price
+                            <input
+                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                              value={vendor.priceEstimate}
+                              onChange={(event) =>
+                                updateVendor(index, { priceEstimate: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="text-xs font-medium text-slate-600">
+                            Region
+                            <input
+                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                              value={vendor.region}
+                              onChange={(event) =>
+                                updateVendor(index, { region: event.target.value })
+                              }
+                            />
+                          </label>
+                          <label className="text-xs font-medium text-slate-600">
+                            Source
+                            <input
+                              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                              value={vendor.source}
+                              onChange={(event) =>
+                                updateVendor(index, { source: event.target.value })
+                              }
+                            />
+                          </label>
                         </div>
-                        <p className="text-xs uppercase tracking-wide text-rose-700">
-                          {vendor.category} | {vendor.region}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-600">{vendor.whyItFits}</p>
+                        <label className="mt-2 block text-xs font-medium text-slate-600">
+                          Notes
+                          <textarea
+                            className="mt-1 h-20 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                            value={vendor.whyItFits}
+                            onChange={(event) =>
+                              updateVendor(index, { whyItFits: event.target.value })
+                            }
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void confirmVendor(vendor)}
+                          className="mt-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                        >
+                          Confirm and Save to Notes
+                        </button>
                       </div>
                     ))}
+                    {renderCustomVendorForm()}
+                    {vendorStatus && (
+                      <p className="text-sm text-slate-600">{vendorStatus}</p>
+                    )}
                   </div>
                 )}
               </SectionCard>

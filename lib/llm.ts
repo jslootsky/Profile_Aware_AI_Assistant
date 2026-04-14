@@ -173,6 +173,8 @@ const structuredSchema = {
             name: { type: "string" },
             region: { type: "string" },
             priceEstimate: { type: "string" },
+            status: { type: "string", enum: ["contracted", "not_contracted"] },
+            source: { type: "string" },
             whyItFits: { type: "string" },
           },
           required: [
@@ -180,6 +182,8 @@ const structuredSchema = {
             "name",
             "region",
             "priceEstimate",
+            "status",
+            "source",
             "whyItFits",
           ],
         },

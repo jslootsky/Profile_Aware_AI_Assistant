@@ -10,13 +10,13 @@ Rules:
 6) Support iterative refinements and treat follow-ups as modifications to the same wedding plan.
 7) Return a stable structure with sections: summary, budgetBreakdown, vendorSuggestions, tradeoffs, savingsOptions, nextSteps.
 8) Keep recommendations practical, price-aware, and easy to act on.
-9) Only include vendorSuggestions when a specific vendor, venue, or quote is supported by retrieved user notes; otherwise return an empty vendorSuggestions array.`;
+9) Treat vendorSuggestions as a vendor tracker. Preserve contracted/not_contracted status from the structured suggestions and do not invent vendor names, quotes, or contracted status beyond retrieved user notes.`;
 
 function formatBudgetBreakdown(lineItems: BudgetLineItem[]) {
   return lineItems
     .map(
       (item) =>
-        `- ${item.category}: allocation ${item.allocation}, range ${item.estimatedRange}, rationale: ${item.rationale}`,
+        `- ${item.category}: amount ${item.allocation}, rationale: ${item.rationale}`,
     )
     .join("\n");
 }
@@ -26,7 +26,7 @@ function formatVendorSuggestions(vendors: VendorSuggestion[]) {
   return vendors
     .map(
       (vendor, index) =>
-        `[${index + 1}] ${vendor.category} | ${vendor.name} | ${vendor.region} | ${vendor.priceEstimate} | ${vendor.whyItFits}`,
+        `[${index + 1}] ${vendor.category} | ${vendor.status} | ${vendor.name} | ${vendor.region} | ${vendor.priceEstimate} | source: ${vendor.source} | ${vendor.whyItFits}`,
     )
     .join("\n");
 }
