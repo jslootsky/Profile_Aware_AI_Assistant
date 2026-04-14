@@ -155,6 +155,7 @@ export function WeddingPlannerApp() {
   const [authUser, setAuthUser] = useState<PlannerAuthUser | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [plannerDataReady, setPlannerDataReady] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [avatarStatus, setAvatarStatus] = useState<string | null>(null);
@@ -233,6 +234,7 @@ export function WeddingPlannerApp() {
     setThreadId(null);
     setUserId(null);
     setRagDebug(null);
+    setPlannerDataReady(false);
     setKnowledgeSource("");
     setKnowledgeContent("");
     setKnowledgeDocs([]);
@@ -266,9 +268,13 @@ export function WeddingPlannerApp() {
     if (session) {
       setAuthError(null);
       setIsSigningIn(false);
+      setPlannerDataReady(false);
     }
     setAuthUser(session?.user ? mapPlannerAuthUser(session.user) : null);
     setAuthToken(session?.access_token || null);
+    if (!session) {
+      setPlannerDataReady(false);
+    }
     setAuthReady(true);
   }
 
@@ -363,6 +369,7 @@ export function WeddingPlannerApp() {
     }
 
     let active = true;
+    setPlannerDataReady(false);
 
     (async () => {
       try {
@@ -419,6 +426,10 @@ export function WeddingPlannerApp() {
       } catch (loadError) {
         if (!active) return;
         setError(`Could not load planner data: ${(loadError as Error).message}`);
+      } finally {
+        if (active) {
+          setPlannerDataReady(true);
+        }
       }
     })();
 
@@ -1106,6 +1117,14 @@ export function WeddingPlannerApp() {
         authConfigured={Boolean(supabase)}
         error={authError}
       />
+    );
+  }
+
+  if (!plannerDataReady) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700">
+        <Spinner label="Loading your wedding planner..." />
+      </main>
     );
   }
 
