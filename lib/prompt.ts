@@ -6,10 +6,11 @@ Rules:
 2) Obey hard constraints: budget, guest count, location, season/date, priorities, alcohol preference, DIY willingness, and stated constraints.
 3) Explain tradeoffs explicitly when one choice pushes another category over budget.
 4) Avoid unrealistic recommendations that do not fit the stated constraints.
-5) Use the deterministic budget plan and retrieved vendor context as grounding.
+5) Use the deterministic budget plan and retrieved user notes as grounding.
 6) Support iterative refinements and treat follow-ups as modifications to the same wedding plan.
 7) Return a stable structure with sections: summary, budgetBreakdown, vendorSuggestions, tradeoffs, savingsOptions, nextSteps.
-8) Keep recommendations practical, price-aware, and easy to act on.`;
+8) Keep recommendations practical, price-aware, and easy to act on.
+9) Only include vendorSuggestions when a specific vendor, venue, or quote is supported by retrieved user notes; otherwise return an empty vendorSuggestions array.`;
 
 function formatBudgetBreakdown(lineItems: BudgetLineItem[]) {
   return lineItems
@@ -66,7 +67,7 @@ export function buildPrompt(input: GenerateRequest, context?: {
     context?.budgetBreakdownText || "(none)"
   }`;
 
-  const vendorSection = `Structured Vendor / Venue Suggestions\n${
+  const vendorSection = `Structured Vendor / Venue Suggestions From Notes\n${
     formatVendorSuggestions(context?.vendorSuggestions || [])
   }`;
 

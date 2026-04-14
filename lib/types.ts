@@ -153,15 +153,3 @@ export interface WeddingCostPlan {
   savingsOptions: string[];
 }
 
-export interface VendorKnowledgeItem {
-  id: string;
-  category: string;
-  name: string;
-  region: string;
-  priceTier: "low" | "medium" | "high";
-  estimatedCost: string;
-  guestCapacity?: string;
-  styleTags: string[];
-  notes: string;
-  alcoholSupport?: string;
-}

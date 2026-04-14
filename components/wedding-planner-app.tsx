@@ -81,6 +81,7 @@ export function WeddingPlannerApp() {
   const [revisionAvoid, setRevisionAvoid] = useState("");
   const [options, setOptions] = useState<RequestOptions>(defaultOptions);
   const [revisions, setRevisions] = useState<StoredSessionOutput[]>([]);
+  const [savedRevisions, setSavedRevisions] = useState<StoredSessionOutput[]>([]);
   const [output, setOutput] = useState<StructuredResponse | null>(null);
   const [latestPrompt, setLatestPrompt] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -96,6 +97,7 @@ export function WeddingPlannerApp() {
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [knowledgeStatus, setKnowledgeStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [surveyStatus, setSurveyStatus] = useState<string | null>(null);
   const [isSavingSurvey, setIsSavingSurvey] = useState(false);
   const [isEditingSurvey, setIsEditingSurvey] = useState(false);
@@ -133,6 +135,7 @@ export function WeddingPlannerApp() {
       (output ? revisionRequest.trim().length > 0 : task.trim().length > 0),
     [isOnboardingComplete, output, revisionRequest, task],
   );
+  const latestSavedRevision = savedRevisions[0] || null;
 
   function resetPlannerState() {
     setProfile(DEFAULT_WEDDING_PROFILE);
@@ -142,6 +145,7 @@ export function WeddingPlannerApp() {
     setRevisionAvoid("");
     setOptions(defaultOptions);
     setRevisions([]);
+    setSavedRevisions([]);
     setOutput(null);
     setLatestPrompt("");
     setSessionId(null);
@@ -156,6 +160,7 @@ export function WeddingPlannerApp() {
     setEditingDocId(null);
     setKnowledgeStatus(null);
     setError(null);
+    setSaveStatus(null);
     setSurveyStatus(null);
     setIsSavingSurvey(false);
     setIsEditingSurvey(false);
@@ -291,9 +296,10 @@ export function WeddingPlannerApp() {
           return response;
         };
 
-        const [profileRes, docsRes] = await Promise.all([
+        const [profileRes, docsRes, plansRes] = await Promise.all([
           fetchWithToken("/api/profile"),
           fetchWithToken("/api/knowledge"),
+          fetchWithToken("/api/plans"),
         ]);
 
         if (!active) return;
@@ -315,6 +321,13 @@ export function WeddingPlannerApp() {
         if (docsRes.ok) {
           const data = (await docsRes.json()) as { docs: KnowledgeDocView[] };
           setKnowledgeDocs(data.docs);
+        }
+
+        if (plansRes.ok) {
+          const data = (await plansRes.json()) as {
+            revisions: StoredSessionOutput[];
+          };
+          setSavedRevisions(data.revisions);
         }
       } catch (loadError) {
         if (!active) return;
@@ -368,6 +381,45 @@ export function WeddingPlannerApp() {
     if (!res.ok) return;
     const data = (await res.json()) as { docs: KnowledgeDocView[] };
     setKnowledgeDocs(data.docs);
+  }
+
+  async function loadSavedPlans() {
+    const res = await authorizedFetch("/api/plans");
+    if (!res.ok) return;
+    const data = (await res.json()) as { revisions: StoredSessionOutput[] };
+    setSavedRevisions(data.revisions);
+  }
+
+  function resumeSavedPlan(revision: StoredSessionOutput) {
+    const threadRevisions = savedRevisions
+      .filter((item) => item.threadId === revision.threadId)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+
+    setTask(revision.baseTask);
+    taskEditedRef.current = true;
+    setOutput(revision.currentOutput);
+    setLatestPrompt("");
+    setSessionId(revision.id);
+    setThreadId(revision.threadId);
+    setUserId(revision.userId);
+    setRevisions(threadRevisions.length ? threadRevisions : [revision]);
+    setRevisionKeep("");
+    setRevisionChange("");
+    setRevisionAvoid("");
+    setSaveStatus("Resumed your saved plan.");
+  }
+
+  async function saveCurrentPlan() {
+    if (!output || !sessionId) {
+      setSaveStatus("Generate a plan before saving.");
+      return;
+    }
+
+    await loadSavedPlans();
+    setSaveStatus("Plan saved. You can resume it next time you sign in.");
   }
 
   async function persistProfile(nextProfile: WeddingProfile, message?: string) {
@@ -501,20 +553,19 @@ export function WeddingPlannerApp() {
       setUserId(data.userId);
       setRagDebug(data.debug || null);
 
-      const now = new Date().toISOString();
-      setRevisions((prev) => [
-        {
-          id: data.sessionId,
-          userId: data.userId,
-          threadId: data.threadId,
-          baseTask: task,
-          previousOutput: output,
-          currentOutput: data.response,
-          revisionRequest: revisionRequest.trim(),
-          createdAt: now,
-        },
-        ...prev,
-      ]);
+      const revision: StoredSessionOutput = {
+        id: data.sessionId,
+        userId: data.userId,
+        threadId: data.threadId,
+        baseTask: task,
+        previousOutput: output,
+        currentOutput: data.response,
+        revisionRequest: revisionRequest.trim(),
+        createdAt: new Date().toISOString(),
+      };
+      setRevisions((prev) => [revision, ...prev]);
+      setSavedRevisions((saved) => [revision, ...saved]);
+      setSaveStatus("Draft saved automatically.");
       setRevisionKeep("");
       setRevisionChange("");
       setRevisionAvoid("");
@@ -573,7 +624,7 @@ export function WeddingPlannerApp() {
     }
 
     const data = (await res.json()) as { source: string };
-    setKnowledgeStatus(`Saved vendor or venue note: ${data.source}.`);
+    setKnowledgeStatus(`Saved note: ${data.source}.`);
     setKnowledgeSource("");
     setKnowledgeContent("");
     setEditingDocId(null);
@@ -1114,9 +1165,9 @@ export function WeddingPlannerApp() {
           </div>
 
           <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-            <h2 className="text-xl font-semibold">2) Local Venue / Vendor Notes</h2>
+            <h2 className="text-xl font-semibold">2) Notes</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Add local venue quotes, vendor restrictions, or family constraints for retrieval.
+              Add vendor quotes, local venue quotes, vendor restrictions, family constraints, accessibility needs, or other planning notes for retrieval.
             </p>
 
             <FormField label="Source name" value={knowledgeSource} onChange={setKnowledgeSource} />
@@ -1185,11 +1236,40 @@ export function WeddingPlannerApp() {
         </section>
 
         <section className="mt-6 rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-          <h2 className="text-xl font-semibold">3) Wedding Plan Output</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">3) Wedding Plan Output</h2>
+              {saveStatus && <p className="mt-1 text-sm text-slate-600">{saveStatus}</p>}
+            </div>
+            {output && (
+              <button
+                onClick={() => void saveCurrentPlan()}
+                className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700"
+              >
+                Save plan
+              </button>
+            )}
+          </div>
           {!output ? (
-            <p className="mt-3 text-sm text-slate-500">
-              No plan yet. Finish the survey and generate your first plan.
-            </p>
+            <div className="mt-3">
+              <p className="text-sm text-slate-500">
+                No plan yet. Finish the survey and generate your first plan.
+              </p>
+              {latestSavedRevision && (
+                <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4">
+                  <p className="font-medium text-rose-900">Resume where you left off?</p>
+                  <p className="mt-1 text-sm text-rose-800">
+                    Last saved {new Date(latestSavedRevision.createdAt).toLocaleString()}.
+                  </p>
+                  <button
+                    onClick={() => resumeSavedPlan(latestSavedRevision)}
+                    className="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Resume saved plan
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="mt-4 grid gap-6 lg:grid-cols-2">
               <SectionCard title="Summary">
@@ -1207,9 +1287,7 @@ export function WeddingPlannerApp() {
                     <div key={item.category} className="rounded-xl bg-slate-50 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{item.category}</p>
-                        <p className="text-sm text-slate-700">
-                          ${item.allocation.toLocaleString()} | {item.estimatedRange}
-                        </p>
+                        <p className="text-sm text-slate-700">{item.estimatedRange}</p>
                       </div>
                       <p className="mt-1 text-sm text-slate-600">{item.rationale}</p>
                     </div>
@@ -1217,20 +1295,26 @@ export function WeddingPlannerApp() {
                 </div>
               </SectionCard>
               <SectionCard title="Vendor Suggestions">
-                <div className="space-y-3">
-                  {output.vendorSuggestions.map((vendor) => (
-                    <div key={`${vendor.category}-${vendor.name}`} className="rounded-xl bg-slate-50 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-medium">{vendor.name}</p>
-                        <p className="text-sm text-slate-600">{vendor.priceEstimate}</p>
+                {output.vendorSuggestions.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    Add vendor quotes or venue details in Notes to ground vendor suggestions.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {output.vendorSuggestions.map((vendor) => (
+                      <div key={`${vendor.category}-${vendor.name}`} className="rounded-xl bg-slate-50 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium">{vendor.name}</p>
+                          <p className="text-sm text-slate-600">{vendor.priceEstimate}</p>
+                        </div>
+                        <p className="text-xs uppercase tracking-wide text-rose-700">
+                          {vendor.category} | {vendor.region}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">{vendor.whyItFits}</p>
                       </div>
-                      <p className="text-xs uppercase tracking-wide text-rose-700">
-                        {vendor.category} | {vendor.region}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-600">{vendor.whyItFits}</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </SectionCard>
               <SectionCard title="Savings Options">
                 <BulletList items={output.savingsOptions} />
