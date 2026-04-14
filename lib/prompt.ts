@@ -26,7 +26,7 @@ function formatVendorSuggestions(vendors: VendorSuggestion[]) {
   return vendors
     .map(
       (vendor, index) =>
-        `[${index + 1}] ${vendor.category} | ${vendor.status} | ${vendor.name} | ${vendor.region} | ${vendor.priceEstimate} | source: ${vendor.source} | ${vendor.whyItFits}`,
+        `[${index + 1}] ${vendor.category} | ${vendor.status} | ${vendor.name} | ${vendor.region} | ${vendor.priceEstimate} | contact: ${vendor.contact} | source: ${vendor.source} | ${vendor.whyItFits}`,
     )
     .join("\n");
 }

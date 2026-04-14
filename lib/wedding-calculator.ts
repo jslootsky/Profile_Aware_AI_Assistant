@@ -125,6 +125,15 @@ export function calculateWeddingBudget(profile: WeddingProfile): WeddingCostPlan
     };
   });
 
+  for (const section of profile.customBudgetSections || []) {
+    lineItems.push({
+      category: section.category,
+      allocation: Math.round(section.allocation),
+      estimatedRange: formatCurrency(section.allocation),
+      rationale: section.rationale || "Custom budget section added by the user.",
+    });
+  }
+
   const budgetPerGuest = Math.round(profile.totalBudget / Math.max(profile.guestCount, 1));
   const tradeoffs: string[] = [];
   const savingsOptions: string[] = [];

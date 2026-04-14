@@ -12,6 +12,7 @@ import { StoredSessionOutput, WeddingProfile } from "./types";
 type WeddingProfileRow = {
   user_id: string;
   profile_json: WeddingProfile;
+  custom_budget_sections?: WeddingProfile["customBudgetSections"] | null;
   updated_at: string;
 };
 
@@ -65,7 +66,13 @@ export async function getPlannerProfile(
     throw error;
   }
 
-  return data ? (data as WeddingProfileRow).profile_json : null;
+  if (!data) return null;
+  const row = data as WeddingProfileRow;
+  return {
+    ...row.profile_json,
+    customBudgetSections:
+      row.custom_budget_sections || row.profile_json.customBudgetSections || [],
+  };
 }
 
 export async function savePlannerProfile(
@@ -81,7 +88,11 @@ export async function savePlannerProfile(
   const { error } = await supabase.from("wedding_profiles").upsert(
     {
       user_id: userId,
-      profile_json: profile,
+      profile_json: {
+        ...profile,
+        customBudgetSections: profile.customBudgetSections || [],
+      },
+      custom_budget_sections: profile.customBudgetSections || [],
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },

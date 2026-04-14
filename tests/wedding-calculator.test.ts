@@ -55,3 +55,28 @@ test("scenario adjustment supports guest count increase", () => {
     result.tradeoffs.some((item) => item.toLowerCase().includes("guest count")),
   );
 });
+
+test("calculator appends custom budget sections from the profile", () => {
+  const profile = mergeWeddingProfile({
+    totalBudget: 15000,
+    guestCount: 80,
+    location: "Philadelphia, PA",
+    priorities: ["food"],
+    onboardingComplete: true,
+    customBudgetSections: [
+      {
+        category: "Marriage License",
+        allocation: 100,
+        rationale: "Required legal cost.",
+      },
+    ],
+  });
+
+  const result = calculateWeddingBudget(profile);
+  const custom = result.lineItems.find((item) => item.category === "Marriage License");
+
+  assert.ok(custom);
+  assert.equal(custom.allocation, 100);
+  assert.equal(custom.estimatedRange, "$100");
+  assert.equal(custom.rationale, "Required legal cost.");
+});

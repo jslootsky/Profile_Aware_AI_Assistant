@@ -44,6 +44,12 @@ export interface SurveyQuestion {
   options?: SurveyOption[];
 }
 
+export interface CustomBudgetSection {
+  category: string;
+  allocation: number;
+  rationale?: string;
+}
+
 export interface WeddingProfile {
   partnerNames: string;
   totalBudget: number;
@@ -59,6 +65,7 @@ export interface WeddingProfile {
   constraints: string;
   ceremonyType: string;
   cateringPreference: string;
+  customBudgetSections: CustomBudgetSection[];
   surveyStep: number;
   onboardingComplete: boolean;
 }
@@ -104,6 +111,7 @@ export interface VendorSuggestion {
   name: string;
   region: string;
   priceEstimate: string;
+  contact: string;
   status: "contracted" | "not_contracted";
   source: string;
   whyItFits: string;

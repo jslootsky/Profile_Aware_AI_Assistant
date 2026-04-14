@@ -64,6 +64,16 @@ function inferPrice(text: string) {
   return "not provided";
 }
 
+function inferContact(text: string) {
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const handle = text.match(/@[a-z0-9._-]+/i);
+  const phone = text.match(/(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}/);
+  const contact = [email?.[0], phone?.[0], handle?.[0]]
+    .filter(Boolean)
+    .join(" | ");
+  return contact || "not provided";
+}
+
 function inferName(source: string, text: string, category: string) {
   const handle = text.match(/@[a-z0-9._-]+/i);
   if (handle) return handle[0];
@@ -94,6 +104,7 @@ function buildVendorTracker(
         name: inferName(snippet.source, snippet.text, category),
         region: profile.location || "not provided",
         priceEstimate: inferPrice(snippet.text),
+        contact: inferContact(snippet.text),
         status: inferStatus(snippet.text),
         source: snippet.source,
         whyItFits:
@@ -116,6 +127,7 @@ function buildVendorTracker(
       name: "TBD",
       region: profile.location || "not provided",
       priceEstimate: "not provided",
+      contact: "not provided",
       status: "not_contracted",
       source: "No retrieved note",
       whyItFits: "No retrieved note currently identifies a contracted vendor for this category.",

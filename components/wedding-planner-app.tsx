@@ -62,6 +62,7 @@ const emptyVendorDraft: VendorSuggestion = {
   name: "",
   region: "",
   priceEstimate: "",
+  contact: "",
   status: "not_contracted",
   source: "Manual vendor tracker",
   whyItFits: "",
@@ -99,8 +100,15 @@ function normalizeStructuredResponse(response: StructuredResponse): StructuredRe
       ...vendor,
       status: vendor.status || "not_contracted",
       source: vendor.source || "Legacy planner output",
+      contact: vendor.contact || "not provided",
     })),
   };
+}
+
+function isCustomBudgetItem(item: BudgetLineItem, profile: WeddingProfile) {
+  return (profile.customBudgetSections || []).some(
+    (section) => section.category === item.category,
+  );
 }
 
 function formatVendorNote(vendor: VendorSuggestion) {
@@ -109,6 +117,7 @@ function formatVendorNote(vendor: VendorSuggestion) {
     `Vendor: ${vendor.name}`,
     `Region: ${vendor.region || "not provided"}`,
     `Price: ${vendor.priceEstimate || "not provided"}`,
+    `Contact: ${vendor.contact || "not provided"}`,
     `Status: ${vendor.status}`,
     `Source: ${vendor.source || "Manual vendor tracker"}`,
     `Notes: ${vendor.whyItFits || "No additional notes."}`,
@@ -489,12 +498,41 @@ export function WeddingPlannerApp() {
   }
 
   async function saveCurrentPlan() {
-    if (!output || !sessionId) {
+    if (!output) {
       setSaveStatus("Generate a plan before saving.");
       return;
     }
 
-    await loadSavedPlans();
+    await persistCustomBudgetSectionsFromOutput();
+
+    const res = await authorizedFetch("/api/plans", {
+      method: "POST",
+      body: JSON.stringify({
+        threadId: threadId || sessionId || undefined,
+        baseTask: task,
+        previousOutput: revisions[0]?.currentOutput || null,
+        currentOutput: normalizeStructuredResponse(output),
+        revisionRequest: revisionRequest || "Manual save",
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      setSaveStatus(`Save failed (${res.status}): ${text}`);
+      return;
+    }
+
+    const data = (await res.json()) as { revision: StoredSessionOutput };
+    const normalizedRevision: StoredSessionOutput = {
+      ...data.revision,
+      currentOutput: normalizeStructuredResponse(data.revision.currentOutput),
+    };
+
+    setSessionId(normalizedRevision.id);
+    setThreadId(normalizedRevision.threadId);
+    setUserId(normalizedRevision.userId);
+    setRevisions((prev) => [normalizedRevision, ...prev]);
+    setSavedRevisions((prev) => [normalizedRevision, ...prev]);
     setSaveStatus("Plan saved. You can resume it next time you sign in.");
   }
 
@@ -759,6 +797,7 @@ export function WeddingPlannerApp() {
       name: customVendor.name.trim(),
       region: customVendor.region.trim() || profile.location || "not provided",
       priceEstimate: customVendor.priceEstimate.trim() || "not provided",
+      contact: customVendor.contact.trim() || "not provided",
       source: "Manual vendor tracker",
       whyItFits:
         customVendor.whyItFits.trim() ||
@@ -810,13 +849,37 @@ export function WeddingPlannerApp() {
     });
   }
 
-  function addCustomBudgetSection() {
+  async function persistCustomBudgetSectionsFromOutput() {
+    if (!output) return;
+    const customBudgetSections = output.budgetBreakdown
+      .filter((item) => isCustomBudgetItem(item, profile))
+      .map((item) => ({
+        category: item.category,
+        allocation: getBudgetAmount(item),
+        rationale: item.rationale || "Custom budget section added by the user.",
+      }));
+
+    const nextProfile = mergeWeddingProfile({
+      ...profile,
+      customBudgetSections,
+    });
+    await persistProfile(nextProfile, "Custom budget sections saved.");
+  }
+
+  async function addCustomBudgetSection() {
     const category = customBudgetCategory.trim();
     const amount = Number(customBudgetAmount);
     if (!category || !Number.isFinite(amount) || amount < 0) {
       setError("Enter a custom budget category and a single non-negative number.");
       return;
     }
+
+    const roundedAmount = Math.round(amount);
+    const customSection = {
+      category,
+      allocation: roundedAmount,
+      rationale: "Custom budget section added by the user.",
+    };
 
     setOutput((current) =>
       current
@@ -826,14 +889,25 @@ export function WeddingPlannerApp() {
               ...current.budgetBreakdown,
               {
                 category,
-                allocation: Math.round(amount),
-                estimatedRange: formatCurrency(amount),
-                rationale: "Custom budget section added by the user.",
+                allocation: roundedAmount,
+                estimatedRange: formatCurrency(roundedAmount),
+                rationale: customSection.rationale,
               },
             ],
           }
         : current,
     );
+
+    const nextProfile = mergeWeddingProfile({
+      ...profile,
+      customBudgetSections: [
+        ...(profile.customBudgetSections || []).filter(
+          (section) => section.category !== category,
+        ),
+        customSection,
+      ],
+    });
+    await persistProfile(nextProfile, "Custom budget section saved.");
     setCustomBudgetCategory("");
     setCustomBudgetAmount("");
     setError(null);
@@ -841,7 +915,7 @@ export function WeddingPlannerApp() {
 
   function renderCustomVendorForm() {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 p-3">
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 shadow-sm">
         <p className="text-sm font-medium">Add Custom Vendor</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <label className="text-xs font-medium text-slate-600">
@@ -898,6 +972,17 @@ export function WeddingPlannerApp() {
               setCustomVendor((vendor) => ({
                 ...vendor,
                 priceEstimate: event.target.value,
+              }))
+            }
+          />
+          <input
+            className="rounded-lg border px-3 py-2 text-sm"
+            placeholder="Email, phone, Instagram"
+            value={customVendor.contact}
+            onChange={(event) =>
+              setCustomVendor((vendor) => ({
+                ...vendor,
+                contact: event.target.value,
               }))
             }
           />
@@ -1586,7 +1671,12 @@ export function WeddingPlannerApp() {
                 action={
                   <button
                     type="button"
-                    onClick={() => setIsEditingBudget((value) => !value)}
+                    onClick={() => {
+                      if (isEditingBudget) {
+                        void persistCustomBudgetSectionsFromOutput();
+                      }
+                      setIsEditingBudget((value) => !value);
+                    }}
                     className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
                   >
                     {isEditingBudget ? "Done" : "Edit"}
@@ -1595,7 +1685,10 @@ export function WeddingPlannerApp() {
               >
                 <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
                   {output.budgetBreakdown.map((item, index) => (
-                    <div key={item.category} className="rounded-xl bg-slate-50 p-3">
+                    <div
+                      key={item.category}
+                      className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm"
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{item.category}</p>
                         {isEditingBudget ? (
@@ -1624,7 +1717,7 @@ export function WeddingPlannerApp() {
                     </div>
                   ))}
                   {isEditingBudget && (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-3">
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 shadow-sm">
                       <p className="text-sm font-medium">Add Custom Budget Section</p>
                       <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
                         <input
@@ -1667,7 +1760,10 @@ export function WeddingPlannerApp() {
                 ) : (
                   <div className="max-h-[520px] space-y-3 overflow-y-auto pr-2">
                     {output.vendorSuggestions.map((vendor, index) => (
-                      <div key={`${vendor.category}-${vendor.name}`} className="rounded-xl bg-slate-50 p-3">
+                      <div
+                        key={`${vendor.category}-${vendor.name}`}
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm"
+                      >
                         {editingVendorIndex === index ? (
                           <>
                             <div className="grid gap-2 sm:grid-cols-2">
@@ -1719,6 +1815,17 @@ export function WeddingPlannerApp() {
                                   value={vendor.priceEstimate}
                                   onChange={(event) =>
                                     updateVendor(index, { priceEstimate: event.target.value })
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs font-medium text-slate-600">
+                                Contact
+                                <input
+                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  placeholder="Email, phone, Instagram"
+                                  value={vendor.contact}
+                                  onChange={(event) =>
+                                    updateVendor(index, { contact: event.target.value })
                                   }
                                 />
                               </label>
@@ -1804,6 +1911,10 @@ export function WeddingPlannerApp() {
                               <div>
                                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Region</dt>
                                 <dd className="text-slate-700">{vendor.region || "not provided"}</dd>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Contact</dt>
+                                <dd className="text-slate-700">{vendor.contact || "not provided"}</dd>
                               </div>
                               <div className="sm:col-span-2">
                                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Notes</dt>

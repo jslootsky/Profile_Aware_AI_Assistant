@@ -4,8 +4,17 @@ create extension if not exists pgcrypto;
 create table if not exists public.wedding_profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   profile_json jsonb not null,
+  custom_budget_sections jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+alter table public.wedding_profiles
+  add column if not exists custom_budget_sections jsonb not null default '[]'::jsonb;
+
+update public.wedding_profiles
+set custom_budget_sections = coalesce(profile_json -> 'customBudgetSections', '[]'::jsonb)
+where custom_budget_sections = '[]'::jsonb
+  and profile_json ? 'customBudgetSections';
 
 do $$
 begin
