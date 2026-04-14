@@ -99,6 +99,12 @@ export function WeddingPlannerApp() {
   const isSurveyMode = !isOnboardingComplete || isEditingSurvey;
   const canJumpBetweenQuestions = isOnboardingComplete && isEditingSurvey;
   const budgetSnapshot = useMemo(() => calculateWeddingBudget(profile), [profile]);
+  const planTotal = useMemo(
+    () =>
+      output?.budgetBreakdown.reduce((total, item) => total + item.allocation, 0) ??
+      0,
+    [output],
+  );
   const canSubmit = useMemo(
     () =>
       isOnboardingComplete &&
@@ -1003,6 +1009,9 @@ export function WeddingPlannerApp() {
           ) : (
             <div className="mt-4 grid gap-6 lg:grid-cols-2">
               <SectionCard title="Summary">
+                <p className="mb-3 text-2xl font-semibold text-slate-900">
+                  Total price: ${planTotal.toLocaleString()}
+                </p>
                 <p className="text-sm leading-6 text-slate-700">{output.summary}</p>
               </SectionCard>
               <SectionCard title="Tradeoffs">
