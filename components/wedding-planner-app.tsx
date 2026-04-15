@@ -446,12 +446,13 @@ export function WeddingPlannerApp() {
           return response;
         };
 
-        const [profileRes, docsRes, plansRes, savedVendorsRes] = await Promise.all([
-          fetchWithToken("/api/profile"),
-          fetchWithToken("/api/knowledge"),
-          fetchWithToken("/api/plans"),
-          fetchWithToken("/api/saved-vendors"),
-        ]);
+        const [profileRes, docsRes, plansRes, savedVendorsRes] =
+          await Promise.all([
+            fetchWithToken("/api/profile"),
+            fetchWithToken("/api/knowledge"),
+            fetchWithToken("/api/plans"),
+            fetchWithToken("/api/saved-vendors"),
+          ]);
 
         if (!active) return;
 
@@ -1321,9 +1322,7 @@ export function WeddingPlannerApp() {
         </div>
         <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-4xl items-center justify-center">
           <section className="romantic-card w-full p-8">
-            <p className="romantic-eyebrow">
-              Survey Complete
-            </p>
+            <p className="romantic-eyebrow">Survey Complete</p>
             <h1 className="mt-3 text-4xl font-semibold leading-tight">
               Your planning profile is ready.
             </h1>
@@ -1403,9 +1402,7 @@ export function WeddingPlannerApp() {
           >
             {canJumpBetweenQuestions && (
               <aside className="romantic-card self-start p-5">
-                <p className="romantic-eyebrow">
-                  Survey Map
-                </p>
+                <p className="romantic-eyebrow">Survey Map</p>
                 <h2 className="mt-2 text-xl font-semibold">
                   Jump to a question
                 </h2>
@@ -1443,9 +1440,7 @@ export function WeddingPlannerApp() {
             <div className="romantic-card self-start p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="romantic-eyebrow">
-                    Budget Wedding Planner
-                  </p>
+                  <p className="romantic-eyebrow">Budget Wedding Planner</p>
                   <h1 className="mt-3 text-4xl font-semibold leading-tight">
                     {isOnboardingComplete
                       ? "Edit your wedding survey"
@@ -1622,17 +1617,11 @@ export function WeddingPlannerApp() {
         )}
 
         <header className="romantic-panel mt-6 p-7">
-          <p className="romantic-eyebrow">
-            Budget Wedding Planner
-          </p>
+          <p className="romantic-eyebrow">Budget Wedding Planner</p>
           <h1 className="mt-2 text-4xl font-semibold">
             Plan a wedding that fits real constraints.
           </h1>
-          <p className="romantic-muted mt-2 max-w-3xl text-sm leading-6">
-            You are signed in and planning against your saved wedding profile.
-            Refine costs, guest count, priorities, and vendor choices without
-            losing context.
-          </p>
+
           <div className="mt-4">
             <button
               onClick={() => setIsEditingSurvey(true)}
@@ -1721,7 +1710,7 @@ export function WeddingPlannerApp() {
               <button
                 disabled={!canSubmit}
                 onClick={() => void submitRequest()}
-                className="romantic-button-primary px-4 py-2 disabled:opacity-50"
+                className="romantic-button-primary px-4 py-2"
               >
                 {isGenerating ? (
                   <Spinner label="Planning..." />
@@ -2168,7 +2157,13 @@ export function WeddingPlannerApp() {
                                   <p className="text-lg font-semibold text-[#7c5960]">
                                     {vendor.category}
                                   </p>
-                                  <span className="rounded-md bg-[#f6dfe4] px-2 py-1 text-xs font-medium uppercase tracking-wide text-[#7c5960]">
+                                  <span
+                                    className={`rounded-md px-2 py-1 text-xs font-medium uppercase tracking-wide ${
+                                      vendor.status === "contracted"
+                                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                        : "border border-[#f0c6cd] bg-[#f6dfe4] text-[#7c5960]"
+                                    }`}
+                                  >
                                     {vendor.status === "contracted"
                                       ? "Contracted"
                                       : "Needs contract"}
@@ -2416,52 +2411,50 @@ function VendorChatLauncher({
     <div className="fixed bottom-6 right-6 z-40 flex h-[min(760px,calc(100vh-3rem))] w-[min(620px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-[#eaded8] bg-white/95 shadow-2xl shadow-[#5c493d]/20 backdrop-blur">
       <div className="border-b border-[#eaded8] bg-[linear-gradient(135deg,#fffaf4,#f6dfe4_58%,#ebe4f6)] p-5">
         <div className="flex items-start justify-between gap-4">
-        <div>
-            <p className="romantic-eyebrow">
-              Vendor Research
-            </p>
+          <div>
+            <p className="romantic-eyebrow">Vendor Research</p>
             <p className="mt-1 text-3xl font-semibold text-[#3f332d]">
               Find Vendors
             </p>
             <p className="romantic-muted mt-1 max-w-md text-sm">
               Search public vendor websites using your saved wedding profile,
               plan, and notes, then star the options you want to keep.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
             aria-label="Close find vendors panel"
             className="romantic-button-secondary px-3 py-2 text-sm font-medium"
-        >
-          Close
-        </button>
-      </div>
+          >
+            Close
+          </button>
+        </div>
 
         <div className="mt-4 flex gap-2 text-sm">
-        <button
-          type="button"
-          onClick={() => onScreenChange("chat")}
+          <button
+            type="button"
+            onClick={() => onScreenChange("chat")}
             className={`rounded-lg px-4 py-2 font-medium shadow-sm ${
-            screen === "chat"
+              screen === "chat"
                 ? "romantic-button-primary"
                 : "romantic-button-secondary"
-          }`}
-        >
-          Chat
-        </button>
-        <button
-          type="button"
-          onClick={() => onScreenChange("saved")}
+            }`}
+          >
+            Chat
+          </button>
+          <button
+            type="button"
+            onClick={() => onScreenChange("saved")}
             className={`rounded-lg px-4 py-2 font-medium shadow-sm ${
-            screen === "saved"
+              screen === "saved"
                 ? "romantic-button-primary"
                 : "romantic-button-secondary"
-          }`}
-        >
-          Saved Vendors
-        </button>
-      </div>
+            }`}
+          >
+            Saved Vendors
+          </button>
+        </div>
       </div>
 
       {screen === "chat" ? (
@@ -2680,9 +2673,7 @@ function AuthenticatedTopBar({
   return (
     <div className="romantic-card flex items-center justify-between gap-4 px-5 py-4">
       <div>
-        <p className="romantic-eyebrow">
-          Signed in
-        </p>
+        <p className="romantic-eyebrow">Signed in</p>
         <p className="romantic-muted mt-1 text-sm">
           Planner data, survey progress, and retrieval notes are scoped to your
           account.
@@ -2826,9 +2817,7 @@ function SurveyInput({
                 )
               }
               className={`rounded-full px-4 py-3 text-sm ${
-                active
-                  ? "romantic-button-primary"
-                  : "romantic-button-secondary"
+                active ? "romantic-button-primary" : "romantic-button-secondary"
               }`}
             >
               {option.label}
@@ -2986,9 +2975,7 @@ function SelectField({
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-[#eaded8] bg-white/70 p-4 shadow-sm">
-      <p className="romantic-eyebrow">
-        {label}
-      </p>
+      <p className="romantic-eyebrow">{label}</p>
       <p className="mt-2 text-lg font-semibold text-[#3f332d]">{value}</p>
     </div>
   );
@@ -3056,7 +3043,10 @@ function RevisionList({ revisions }: { revisions: StoredSessionOutput[] }) {
   return (
     <ul className="space-y-2 text-sm text-[#5f5149]">
       {revisions.map((revision, index) => (
-        <li key={revision.id} className="rounded-lg border border-[#eaded8] bg-[#fcfbf9]/80 p-3">
+        <li
+          key={revision.id}
+          className="rounded-lg border border-[#eaded8] bg-[#fcfbf9]/80 p-3"
+        >
           <p className="font-medium">
             {index === revisions.length - 1 && !revision.revisionRequest
               ? "Initial plan"
