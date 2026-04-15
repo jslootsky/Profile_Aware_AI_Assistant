@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { GoogleSignInLanding } from "@/components/google-sign-in-landing";
 import { UserMenu, type PlannerAuthUser } from "@/components/user-menu";
@@ -141,6 +148,172 @@ const defaultOptions: RequestOptions = {
   ragDebug: false,
 };
 
+type ThemeKey =
+  | "romantic"
+  | "blue"
+  | "green"
+  | "purple"
+  | "orange"
+  | "brown"
+  | "dark";
+
+type ThemePalette = {
+  key: ThemeKey;
+  label: string;
+  primary: string;
+  primaryDark: string;
+  primaryRgb: string;
+  secondary: string;
+  secondaryRgb: string;
+  accentText: string;
+  panelStart: string;
+  panelEnd: string;
+  dark: string;
+  darkEnd: string;
+  pageStart?: string;
+  pageEnd?: string;
+  surface?: string;
+  surfaceStrong?: string;
+  text?: string;
+  muted?: string;
+  line?: string;
+  shadow?: string;
+};
+
+const themePalettes: ThemePalette[] = [
+  {
+    key: "romantic",
+    label: "Romantic red",
+    primary: "#c93446",
+    primaryDark: "#9f1f32",
+    primaryRgb: "201, 52, 70",
+    secondary: "#f6dfe4",
+    secondaryRgb: "246, 223, 228",
+    accentText: "#7c5960",
+    panelStart: "#fffaf4",
+    panelEnd: "#f6dfe4",
+    dark: "#4f4139",
+    darkEnd: "#382e29",
+  },
+  {
+    key: "blue",
+    label: "Blue",
+    primary: "#3177b7",
+    primaryDark: "#1f4f82",
+    primaryRgb: "49, 119, 183",
+    secondary: "#dbeaf8",
+    secondaryRgb: "219, 234, 248",
+    accentText: "#355a78",
+    panelStart: "#f7fbff",
+    panelEnd: "#dbeaf8",
+    dark: "#314457",
+    darkEnd: "#233240",
+  },
+  {
+    key: "green",
+    label: "Green",
+    primary: "#4f8f63",
+    primaryDark: "#2f6844",
+    primaryRgb: "79, 143, 99",
+    secondary: "#dfe9dc",
+    secondaryRgb: "223, 233, 220",
+    accentText: "#4d6b4a",
+    panelStart: "#fbfff8",
+    panelEnd: "#dfe9dc",
+    dark: "#37483a",
+    darkEnd: "#263428",
+  },
+  {
+    key: "purple",
+    label: "Purple",
+    primary: "#8b64b0",
+    primaryDark: "#60427f",
+    primaryRgb: "139, 100, 176",
+    secondary: "#ebe4f6",
+    secondaryRgb: "235, 228, 246",
+    accentText: "#604a76",
+    panelStart: "#fdfaff",
+    panelEnd: "#ebe4f6",
+    dark: "#43374f",
+    darkEnd: "#31283b",
+  },
+  {
+    key: "orange",
+    label: "Orange",
+    primary: "#c76f3b",
+    primaryDark: "#944a23",
+    primaryRgb: "199, 111, 59",
+    secondary: "#f5dfcc",
+    secondaryRgb: "245, 223, 204",
+    accentText: "#79513b",
+    panelStart: "#fffaf4",
+    panelEnd: "#f5dfcc",
+    dark: "#513d31",
+    darkEnd: "#3a2d25",
+  },
+  {
+    key: "brown",
+    label: "Brown",
+    primary: "#8f5e45",
+    primaryDark: "#613e2e",
+    primaryRgb: "143, 94, 69",
+    secondary: "#eaded8",
+    secondaryRgb: "234, 222, 216",
+    accentText: "#664b3e",
+    panelStart: "#fffaf4",
+    panelEnd: "#eaded8",
+    dark: "#4b3a31",
+    darkEnd: "#332821",
+  },
+  {
+    key: "dark",
+    label: "Dark",
+    primary: "#d65a70",
+    primaryDark: "#9d2f45",
+    primaryRgb: "214, 90, 112",
+    secondary: "#2f3a46",
+    secondaryRgb: "47, 58, 70",
+    accentText: "#f0a5b2",
+    panelStart: "#20242d",
+    panelEnd: "#2f3a46",
+    dark: "#171a21",
+    darkEnd: "#0f1117",
+    pageStart: "#111318",
+    pageEnd: "#1b1f29",
+    surface: "rgba(31, 35, 44, 0.9)",
+    surfaceStrong: "rgba(39, 44, 55, 0.94)",
+    text: "#f8efe8",
+    muted: "#cfc3ba",
+    line: "#45414a",
+    shadow: "0 18px 45px rgba(0, 0, 0, 0.32)",
+  },
+];
+
+function getThemeStyle(theme: ThemePalette): CSSProperties {
+  return {
+    "--theme-primary": theme.primary,
+    "--theme-primary-dark": theme.primaryDark,
+    "--theme-primary-rgb": theme.primaryRgb,
+    "--theme-secondary": theme.secondary,
+    "--theme-secondary-rgb": theme.secondaryRgb,
+    "--theme-accent-text": theme.accentText,
+    "--theme-panel-start": theme.panelStart,
+    "--theme-panel-end": theme.panelEnd,
+    "--theme-dark": theme.dark,
+    "--theme-dark-end": theme.darkEnd,
+    "--theme-page-start": theme.pageStart || "#fcfbf9",
+    "--theme-page-end": theme.pageEnd || "#fcfbf9",
+    "--theme-surface": theme.surface || "rgba(255, 255, 255, 0.84)",
+    "--theme-surface-strong":
+      theme.surfaceStrong || "rgba(255, 255, 255, 0.9)",
+    "--theme-text": theme.text || "#3f332d",
+    "--theme-muted": theme.muted || "#7a6b63",
+    "--theme-line": theme.line || "#eaded8",
+    "--theme-shadow":
+      theme.shadow || "0 18px 45px rgba(92, 73, 61, 0.12)",
+  } as CSSProperties;
+}
+
 function mapPlannerAuthUser(user: User): PlannerAuthUser {
   return {
     id: user.id,
@@ -209,6 +382,7 @@ export function WeddingPlannerApp() {
   const [isSavingSurvey, setIsSavingSurvey] = useState(false);
   const [isEditingSurvey, setIsEditingSurvey] = useState(false);
   const [showSurveySummary, setShowSurveySummary] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<ThemeKey>("romantic");
   const [isVendorChatOpen, setIsVendorChatOpen] = useState(false);
   const [vendorChatScreen, setVendorChatScreen] = useState<"chat" | "saved">(
     "chat",
@@ -257,6 +431,10 @@ export function WeddingPlannerApp() {
     [isOnboardingComplete, output, revisionRequest, task],
   );
   const latestSavedRevision = savedRevisions[0] || null;
+  const activeTheme =
+    themePalettes.find((theme) => theme.key === selectedTheme) ||
+    themePalettes[0];
+  const themeStyle = useMemo(() => getThemeStyle(activeTheme), [activeTheme]);
 
   function resetPlannerState() {
     setProfile(DEFAULT_WEDDING_PROFILE);
@@ -291,6 +469,7 @@ export function WeddingPlannerApp() {
     setIsSavingSurvey(false);
     setIsEditingSurvey(false);
     setShowSurveySummary(false);
+    setSelectedTheme("romantic");
     setIsGenerating(false);
     setAvatarStatus(null);
     setIsVendorChatOpen(false);
@@ -446,12 +625,13 @@ export function WeddingPlannerApp() {
           return response;
         };
 
-        const [profileRes, docsRes, plansRes, savedVendorsRes] = await Promise.all([
-          fetchWithToken("/api/profile"),
-          fetchWithToken("/api/knowledge"),
-          fetchWithToken("/api/plans"),
-          fetchWithToken("/api/saved-vendors"),
-        ]);
+        const [profileRes, docsRes, plansRes, savedVendorsRes] =
+          await Promise.all([
+            fetchWithToken("/api/profile"),
+            fetchWithToken("/api/knowledge"),
+            fetchWithToken("/api/plans"),
+            fetchWithToken("/api/saved-vendors"),
+          ]);
 
         if (!active) return;
 
@@ -1102,13 +1282,13 @@ export function WeddingPlannerApp() {
 
   function renderCustomVendorForm() {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 shadow-sm">
+      <div className="rounded-lg border border-dashed border-[#cab8af] bg-white/80 p-3 shadow-sm">
         <p className="text-sm font-medium">Add Custom Vendor</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <label className="text-xs font-medium text-slate-600">
+          <label className="romantic-muted text-xs font-medium">
             Category
             <select
-              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+              className="romantic-input mt-1 w-full px-2 py-2 text-sm"
               value={customVendor.category}
               onChange={(event) =>
                 setCustomVendor((vendor) => ({
@@ -1124,10 +1304,10 @@ export function WeddingPlannerApp() {
               ))}
             </select>
           </label>
-          <label className="text-xs font-medium text-slate-600">
+          <label className="romantic-muted text-xs font-medium">
             Status
             <select
-              className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+              className="romantic-input mt-1 w-full px-2 py-2 text-sm"
               value={customVendor.status}
               onChange={(event) =>
                 setCustomVendor((vendor) => ({
@@ -1141,7 +1321,7 @@ export function WeddingPlannerApp() {
             </select>
           </label>
           <input
-            className="rounded-lg border px-3 py-2 text-sm"
+            className="romantic-input px-3 py-2 text-sm"
             placeholder="Vendor name"
             value={customVendor.name}
             onChange={(event) =>
@@ -1152,7 +1332,7 @@ export function WeddingPlannerApp() {
             }
           />
           <input
-            className="rounded-lg border px-3 py-2 text-sm"
+            className="romantic-input px-3 py-2 text-sm"
             placeholder="Price"
             value={customVendor.priceEstimate}
             onChange={(event) =>
@@ -1163,7 +1343,7 @@ export function WeddingPlannerApp() {
             }
           />
           <input
-            className="rounded-lg border px-3 py-2 text-sm"
+            className="romantic-input px-3 py-2 text-sm"
             placeholder="Email, phone, Instagram"
             value={customVendor.contact}
             onChange={(event) =>
@@ -1174,7 +1354,7 @@ export function WeddingPlannerApp() {
             }
           />
           <input
-            className="rounded-lg border px-3 py-2 text-sm"
+            className="romantic-input px-3 py-2 text-sm"
             placeholder={`Region (${profile.location || "optional"})`}
             value={customVendor.region}
             onChange={(event) =>
@@ -1185,7 +1365,7 @@ export function WeddingPlannerApp() {
             }
           />
           <input
-            className="rounded-lg border px-3 py-2 text-sm"
+            className="romantic-input px-3 py-2 text-sm"
             placeholder="Notes"
             value={customVendor.whyItFits}
             onChange={(event) =>
@@ -1199,7 +1379,7 @@ export function WeddingPlannerApp() {
         <button
           type="button"
           onClick={() => void addCustomVendor()}
-          className="mt-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+          className="romantic-button-primary mt-2 px-3 py-2 text-sm font-medium"
         >
           Add Vendor and Save to Notes
         </button>
@@ -1283,7 +1463,10 @@ export function WeddingPlannerApp() {
 
   if (!authReady) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700">
+      <main
+        className="romantic-page flex min-h-screen items-center justify-center text-[#5f5149]"
+        style={themeStyle}
+      >
         <Spinner label="Checking session..." />
       </main>
     );
@@ -1302,7 +1485,10 @@ export function WeddingPlannerApp() {
 
   if (!plannerDataReady) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-700">
+      <main
+        className="romantic-page flex min-h-screen items-center justify-center text-[#5f5149]"
+        style={themeStyle}
+      >
         <Spinner label="Loading your wedding planner..." />
       </main>
     );
@@ -1310,24 +1496,27 @@ export function WeddingPlannerApp() {
 
   if (showSurveySummary) {
     return (
-      <main className="min-h-screen bg-[linear-gradient(160deg,#fff7ed_0%,#fff1f2_50%,#ffffff_100%)] p-6 text-slate-900">
+      <main
+        className="romantic-page min-h-screen p-6 text-[#3f332d]"
+        style={themeStyle}
+      >
         <div className="mx-auto max-w-6xl">
           <AuthenticatedTopBar
             user={authUser}
             onSignOut={handleSignOut}
             onUploadAvatar={handleAvatarUpload}
             isSigningOut={isSigningOut}
+            selectedTheme={selectedTheme}
+            onThemeChange={setSelectedTheme}
           />
         </div>
         <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-4xl items-center justify-center">
-          <section className="w-full rounded-[2rem] bg-white p-8 shadow-xl ring-1 ring-rose-100">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-rose-600">
-              Survey Complete
-            </p>
+          <section className="romantic-card w-full p-8">
+            <p className="romantic-eyebrow">Survey Complete</p>
             <h1 className="mt-3 text-4xl font-semibold leading-tight">
               Your planning profile is ready.
             </h1>
-            <p className="mt-3 max-w-2xl text-base text-slate-600">
+            <p className="romantic-muted mt-3 max-w-2xl text-base">
               The planner will use these details to keep recommendations
               grounded in your budget, guest count, priorities, and constraints.
             </p>
@@ -1359,7 +1548,7 @@ export function WeddingPlannerApp() {
             <div className="mt-8 flex flex-wrap gap-3">
               <button
                 onClick={() => setShowSurveySummary(false)}
-                className="rounded-xl bg-rose-600 px-4 py-2 text-white"
+                className="romantic-button-primary px-4 py-2"
               >
                 Start planning
               </button>
@@ -1368,7 +1557,7 @@ export function WeddingPlannerApp() {
                   setShowSurveySummary(false);
                   setIsEditingSurvey(true);
                 }}
-                className="rounded-xl border px-4 py-2"
+                className="romantic-button-secondary px-4 py-2"
               >
                 Review answers
               </button>
@@ -1381,16 +1570,21 @@ export function WeddingPlannerApp() {
 
   if (isSurveyMode) {
     return (
-      <main className="min-h-screen bg-[linear-gradient(160deg,#fff7ed_0%,#fff1f2_50%,#ffffff_100%)] p-6 text-slate-900">
+      <main
+        className="romantic-page min-h-screen p-6 text-[#3f332d]"
+        style={themeStyle}
+      >
         <div className="mx-auto max-w-6xl">
           <AuthenticatedTopBar
             user={authUser}
             onSignOut={handleSignOut}
             onUploadAvatar={handleAvatarUpload}
             isSigningOut={isSigningOut}
+            selectedTheme={selectedTheme}
+            onThemeChange={setSelectedTheme}
           />
           {avatarStatus && (
-            <p className="mt-3 text-sm text-slate-600">{avatarStatus}</p>
+            <p className="romantic-muted mt-3 text-sm">{avatarStatus}</p>
           )}
         </div>
         <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-6xl items-center justify-center">
@@ -1402,14 +1596,12 @@ export function WeddingPlannerApp() {
             }`}
           >
             {canJumpBetweenQuestions && (
-              <aside className="self-start rounded-[2rem] bg-white p-5 shadow-xl ring-1 ring-rose-100">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-rose-600">
-                  Survey Map
-                </p>
+              <aside className="romantic-card self-start p-5">
+                <p className="romantic-eyebrow">Survey Map</p>
                 <h2 className="mt-2 text-xl font-semibold">
                   Jump to a question
                 </h2>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="romantic-muted mt-2 text-sm">
                   Available only in edit mode after the survey has been
                   completed.
                 </p>
@@ -1423,11 +1615,11 @@ export function WeddingPlannerApp() {
                         onClick={() => void goToSurveyStep(index)}
                         className={`w-full rounded-2xl border px-4 py-3 text-left text-sm ${
                           isActive
-                            ? "border-rose-300 bg-rose-50 text-rose-700"
-                            : "border-slate-200 bg-white text-slate-700"
+                            ? "border-[#d98c9a] bg-[#f6dfe4] text-[#7c5960]"
+                            : "border-[#eaded8] bg-white/80 text-[#5f5149]"
                         }`}
                       >
-                        <span className="block text-xs uppercase tracking-wide text-slate-400">
+                        <span className="block text-xs uppercase tracking-wide text-[#9a8a82]">
                           Step {index + 1}
                         </span>
                         <span className="mt-1 block font-medium">
@@ -1440,24 +1632,22 @@ export function WeddingPlannerApp() {
               </aside>
             )}
 
-            <div className="self-start rounded-[2rem] bg-white p-8 shadow-xl ring-1 ring-rose-100">
+            <div className="romantic-card self-start p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-rose-600">
-                    Budget Wedding Planner
-                  </p>
+                  <p className="romantic-eyebrow">Budget Wedding Planner</p>
                   <h1 className="mt-3 text-4xl font-semibold leading-tight">
                     {isOnboardingComplete
                       ? "Edit your wedding survey"
                       : "Start with the wedding survey"}
                   </h1>
-                  <p className="mt-3 max-w-2xl text-base text-slate-600">
+                  <p className="romantic-muted mt-3 max-w-2xl text-base">
                     {isOnboardingComplete
                       ? "Update any answer and continue. Your saved profile and planner context will refresh when you finish."
                       : "Answer one question at a time. Sign-in is already complete, so this is the only thing to focus on before planning begins."}
                   </p>
                 </div>
-                <span className="rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700">
+                <span className="romantic-chip px-4 py-2 text-sm font-medium">
                   Step {currentStep + 1} of {weddingSurveySchema.length}
                 </span>
               </div>
@@ -1469,7 +1659,7 @@ export function WeddingPlannerApp() {
                 />
               </div>
 
-              <div className="mt-8 rounded-[1.5rem] bg-slate-50 p-6">
+              <div className="romantic-panel mt-8 p-6">
                 <SurveyStepCard
                   question={currentQuestion}
                   value={profile[currentQuestion.id]}
@@ -1484,11 +1674,11 @@ export function WeddingPlannerApp() {
                 />
               </div>
 
-              <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-3 rounded-2xl bg-white/95 p-3 shadow-sm ring-1 ring-slate-200 backdrop-blur">
+              <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-3 rounded-lg border border-[#eaded8] bg-white/90 p-3 shadow-sm backdrop-blur">
                 <button
                   disabled={currentStep === 0 || isSavingSurvey}
                   onClick={() => void goToSurveyStep(currentStep - 1)}
-                  className="rounded-xl border px-4 py-2 disabled:opacity-50"
+                  className="romantic-button-secondary px-4 py-2 disabled:opacity-50"
                 >
                   Back
                 </button>
@@ -1497,7 +1687,7 @@ export function WeddingPlannerApp() {
                     <button
                       disabled={isSavingSurvey}
                       onClick={() => setIsEditingSurvey(false)}
-                      className="rounded-xl border px-4 py-2 disabled:opacity-50"
+                      className="romantic-button-secondary px-4 py-2 disabled:opacity-50"
                     >
                       Exit
                     </button>
@@ -1513,14 +1703,14 @@ export function WeddingPlannerApp() {
                         "Survey progress saved.",
                       )
                     }
-                    className="rounded-xl border px-4 py-2 disabled:opacity-50"
+                    className="romantic-button-secondary px-4 py-2 disabled:opacity-50"
                   >
                     Save
                   </button>
                   <button
                     disabled={isSavingSurvey}
                     onClick={() => void handleNextSurveyStep()}
-                    className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+                    className="romantic-button-primary px-4 py-2 disabled:opacity-50"
                   >
                     {currentStep === weddingSurveySchema.length - 1
                       ? "Finish"
@@ -1530,7 +1720,7 @@ export function WeddingPlannerApp() {
               </div>
 
               {surveyStatus && (
-                <p className="mt-4 text-sm text-slate-600">{surveyStatus}</p>
+                <p className="romantic-muted mt-4 text-sm">{surveyStatus}</p>
               )}
               {(error || authError) && (
                 <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -1539,9 +1729,9 @@ export function WeddingPlannerApp() {
               )}
             </div>
 
-            <aside className="self-start rounded-[2rem] bg-slate-950 p-8 text-white shadow-xl">
+            <aside className="romantic-floral-dark self-start p-8">
               <h2 className="text-2xl font-semibold">Live planning snapshot</h2>
-              <p className="mt-3 text-sm text-slate-300">
+              <p className="mt-3 text-sm text-[#fffaf4]/75">
                 These numbers update as you answer the survey so you can see how
                 your constraints shape the plan.
               </p>
@@ -1577,9 +1767,9 @@ export function WeddingPlannerApp() {
                 <InfoRow label="Season" value={profile.season || "Not set"} />
                 <InfoRow label="Style" value={profile.style || "Not set"} />
               </div>
-              <div className="mt-6 rounded-2xl bg-slate-900 p-4">
+              <div className="mt-6 rounded-lg bg-white/10 p-4">
                 <h3 className="font-medium">Protected priorities</h3>
-                <p className="mt-2 text-sm text-slate-300">
+                <p className="mt-2 text-sm text-[#fffaf4]/75">
                   {profile.priorities.map(formatPriorityLabel).join(", ") ||
                     "None"}
                 </p>
@@ -1589,13 +1779,13 @@ export function WeddingPlannerApp() {
                   budgetSnapshot.tradeoffs.map((item, index) => (
                     <div
                       key={index}
-                      className="rounded-xl bg-slate-900 p-3 text-sm text-slate-200"
+                      className="rounded-lg bg-white/10 p-3 text-sm text-[#fffaf4]/85"
                     >
                       {item}
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-xl bg-slate-900 p-3 text-sm text-slate-300">
+                  <div className="rounded-lg bg-white/10 p-3 text-sm text-[#fffaf4]/75">
                     Tradeoffs will appear as your budget and guest count become
                     clearer.
                   </div>
@@ -1609,34 +1799,30 @@ export function WeddingPlannerApp() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="romantic-page min-h-screen text-[#3f332d]" style={themeStyle}>
       <div className="mx-auto max-w-7xl p-6">
         <AuthenticatedTopBar
           user={authUser}
           onSignOut={handleSignOut}
           onUploadAvatar={handleAvatarUpload}
           isSigningOut={isSigningOut}
+          selectedTheme={selectedTheme}
+          onThemeChange={setSelectedTheme}
         />
         {avatarStatus && (
-          <p className="mt-3 text-sm text-slate-600">{avatarStatus}</p>
+          <p className="romantic-muted mt-3 text-sm">{avatarStatus}</p>
         )}
 
-        <header className="mt-6 rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
-            Budget Wedding Planner
-          </p>
-          <h1 className="mt-2 text-3xl font-bold">
+        <header className="romantic-panel mt-6 p-7">
+          <p className="romantic-eyebrow">Budget Wedding Planner</p>
+          <h1 className="mt-2 text-4xl font-semibold">
             Plan a wedding that fits real constraints.
           </h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-700">
-            You are signed in and planning against your saved wedding profile.
-            Refine costs, guest count, priorities, and vendor choices without
-            losing context.
-          </p>
+
           <div className="mt-4">
             <button
               onClick={() => setIsEditingSurvey(true)}
-              className="rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-medium text-rose-700"
+              className="romantic-button-secondary px-4 py-2 text-sm font-semibold"
             >
               Edit survey answers
             </button>
@@ -1650,30 +1836,30 @@ export function WeddingPlannerApp() {
         )}
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
+          <div className="romantic-card p-6">
             <h2 className="text-xl font-semibold">Planner</h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="romantic-muted mt-1 text-sm leading-6">
               Tell the planner what kind of wedding plan you want. It will use
               your saved survey answers and notes automatically, including
               vendor quotes, constraints, and priorities.
             </p>
 
             {!isOnboardingComplete && (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <div className="mt-4 rounded-lg border border-[#ead7a8] bg-[#fff8dc] p-3 text-sm text-[#7a5b27]">
                 Finish the survey before generating a planning response.
               </div>
             )}
 
-            <label className="mt-4 block text-sm font-medium">
+            <label className="mt-4 block text-sm font-medium text-[var(--theme-text)]">
               Planning request
             </label>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="romantic-muted mt-1 text-sm leading-6">
               Start with the suggested request or replace it with your own
               instructions. Mention goals like budget limits, guest count,
               must-haves, tradeoffs, or vendor categories that need attention.
             </p>
             <textarea
-              className="mt-1 h-32 w-full rounded-xl border p-3"
+              className="romantic-input mt-2 h-36 w-full p-4 text-sm leading-6"
               value={task}
               onChange={(e) => {
                 updateBaseTask(e.target.value);
@@ -1684,10 +1870,10 @@ export function WeddingPlannerApp() {
 
             {output && (
               <>
-                <label className="mt-4 block text-sm font-medium">
+                <label className="mt-4 block text-sm font-medium text-[var(--theme-text)]">
                   Revise this plan
                 </label>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="romantic-muted mt-1 text-sm leading-6">
                   Use this for follow-up changes after a plan is generated.
                   Describe only what should change; the rest of the existing
                   plan will be treated as context.
@@ -1702,7 +1888,7 @@ export function WeddingPlannerApp() {
             )}
 
             <div className="mt-4 flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-[var(--theme-text)]">
                 <input
                   type="checkbox"
                   checked={Boolean(options.ragDebug)}
@@ -1721,7 +1907,7 @@ export function WeddingPlannerApp() {
               <button
                 disabled={!canSubmit}
                 onClick={() => void submitRequest()}
-                className="rounded-xl bg-rose-600 px-4 py-2 text-white disabled:opacity-50"
+                className="romantic-button-primary px-4 py-2"
               >
                 {isGenerating ? (
                   <Spinner label="Planning..." />
@@ -1768,15 +1954,15 @@ export function WeddingPlannerApp() {
                 }
               />
             </div>
-            <p className="mt-3 text-sm text-slate-600">
+            <p className="romantic-muted mt-3 text-sm">
               Use the shortcut buttons to autofill common requests, then edit
               the wording before generating or revising.
             </p>
           </div>
 
-          <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
+          <div className="romantic-card p-6">
             <h2 className="text-xl font-semibold">Notes</h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="romantic-muted mt-1 text-sm leading-6">
               Add vendor quotes, local venue quotes, vendor restrictions, family
               constraints, accessibility needs, or other planning notes for
               retrieval.
@@ -1787,9 +1973,11 @@ export function WeddingPlannerApp() {
               value={knowledgeSource}
               onChange={setKnowledgeSource}
             />
-            <label className="mt-3 block text-sm font-medium">Notes</label>
+            <label className="mt-3 block text-sm font-medium text-[var(--theme-text)]">
+              Notes
+            </label>
             <textarea
-              className="mt-1 h-28 w-full rounded-xl border p-3"
+              className="romantic-input mt-2 h-32 w-full p-4 text-sm leading-6"
               value={knowledgeContent}
               onChange={(e) => setKnowledgeContent(e.target.value)}
             />
@@ -1797,7 +1985,7 @@ export function WeddingPlannerApp() {
             <div className="mt-3 flex gap-2">
               <button
                 onClick={() => void upsertKnowledgeDoc()}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-white"
+                className="romantic-button-primary px-4 py-2"
               >
                 {editingDocId ? "Update note" : "Add note"}
               </button>
@@ -1809,7 +1997,7 @@ export function WeddingPlannerApp() {
                     setKnowledgeContent("");
                     setKnowledgeStatus("Edit canceled.");
                   }}
-                  className="rounded-xl border px-4 py-2"
+                  className="romantic-button-secondary px-4 py-2"
                 >
                   Cancel
                 </button>
@@ -1817,17 +2005,17 @@ export function WeddingPlannerApp() {
             </div>
 
             {knowledgeStatus && (
-              <p className="mt-2 text-sm text-slate-600">{knowledgeStatus}</p>
+              <p className="romantic-muted mt-2 text-sm">{knowledgeStatus}</p>
             )}
 
             <div className="mt-4 space-y-2">
               {knowledgeDocs.length === 0 ? (
-                <p className="text-sm text-slate-500">No local notes yet.</p>
+                <p className="romantic-muted text-sm">No local notes yet.</p>
               ) : (
                 knowledgeDocs.map((doc) => (
                   <div
                     key={doc.id}
-                    className="rounded-xl border border-slate-200 p-3"
+                    className="rounded-lg border border-[#eaded8] bg-white/70 p-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1840,13 +2028,13 @@ export function WeddingPlannerApp() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => beginEditDoc(doc)}
-                          className="rounded border px-3 py-1"
+                          className="romantic-button-secondary px-3 py-1 text-sm"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => void removeKnowledgeDoc(doc.id)}
-                          className="rounded border px-3 py-1"
+                          className="romantic-button-secondary px-3 py-1 text-sm"
                         >
                           Delete
                         </button>
@@ -1859,20 +2047,20 @@ export function WeddingPlannerApp() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
+        <section className="romantic-card mt-6 p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold">
                 Your Personalized Wedding Plan
               </h2>
               {saveStatus && (
-                <p className="mt-1 text-sm text-slate-600">{saveStatus}</p>
+                <p className="romantic-muted mt-1 text-sm">{saveStatus}</p>
               )}
             </div>
             {output && (
               <button
                 onClick={() => void saveCurrentPlan()}
-                className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700"
+                className="romantic-button-secondary px-4 py-2 text-sm font-semibold"
               >
                 Save plan
               </button>
@@ -1880,21 +2068,21 @@ export function WeddingPlannerApp() {
           </div>
           {!output ? (
             <div className="mt-3">
-              <p className="text-sm text-slate-500">
+              <p className="romantic-muted text-sm">
                 No plan yet. Finish the survey and generate your first plan.
               </p>
               {latestSavedRevision && (
-                <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4">
-                  <p className="font-medium text-rose-900">
+                <div className="romantic-panel mt-4 p-4">
+                  <p className="font-medium text-[#7c5960]">
                     Resume where you left off?
                   </p>
-                  <p className="mt-1 text-sm text-rose-800">
+                  <p className="mt-1 text-sm text-[#7c5960]">
                     Last saved{" "}
                     {new Date(latestSavedRevision.createdAt).toLocaleString()}.
                   </p>
                   <button
                     onClick={() => resumeSavedPlan(latestSavedRevision)}
-                    className="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white"
+                    className="romantic-button-primary mt-3 px-4 py-2 text-sm font-semibold"
                   >
                     Resume saved plan
                   </button>
@@ -1911,10 +2099,10 @@ export function WeddingPlannerApp() {
                 >
                   Total price: ${planTotal.toLocaleString()}
                 </p>
-                <p className="mb-3 text-xs text-slate-500">
+                <p className="romantic-muted mb-3 text-xs">
                   Stated budget: ${profile.totalBudget.toLocaleString()}
                 </p>
-                <p className="text-sm leading-6 text-slate-700">
+                <p className="romantic-muted text-sm leading-6">
                   {output.summary}
                 </p>
               </SectionCard>
@@ -1932,7 +2120,7 @@ export function WeddingPlannerApp() {
                       }
                       setIsEditingBudget((value) => !value);
                     }}
-                    className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
+                    className="romantic-button-secondary px-3 py-1 text-sm font-medium"
                   >
                     {isEditingBudget ? "Done" : "Edit"}
                   </button>
@@ -1942,15 +2130,15 @@ export function WeddingPlannerApp() {
                   {output.budgetBreakdown.map((item, index) => (
                     <div
                       key={item.category}
-                      className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm"
+                      className="rounded-lg border border-[#eaded8] bg-[#fcfbf9]/80 p-3 shadow-sm"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{item.category}</p>
                         {isEditingBudget ? (
-                          <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <label className="flex items-center gap-2 text-sm text-[#5f5149]">
                             $
                             <input
-                              className="w-28 rounded-lg border bg-white px-2 py-1 text-right"
+                              className="romantic-input w-28 px-2 py-1 text-right"
                               type="number"
                               min={0}
                               value={getBudgetAmount(item)}
@@ -1965,24 +2153,24 @@ export function WeddingPlannerApp() {
                             />
                           </label>
                         ) : (
-                          <p className="text-sm font-semibold text-slate-800">
+                          <p className="text-sm font-semibold text-[#3f332d]">
                             {formatCurrency(getBudgetAmount(item))}
                           </p>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-slate-600">
+                      <p className="romantic-muted mt-1 text-sm">
                         {item.rationale}
                       </p>
                     </div>
                   ))}
                   {isEditingBudget && (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 shadow-sm">
+                    <div className="rounded-lg border border-dashed border-[#cab8af] bg-white/80 p-3 shadow-sm">
                       <p className="text-sm font-medium">
                         Add Custom Budget Section
                       </p>
                       <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
                         <input
-                          className="rounded-lg border px-3 py-2 text-sm"
+                          className="romantic-input px-3 py-2 text-sm"
                           placeholder="Section name"
                           value={customBudgetCategory}
                           onChange={(event) =>
@@ -1990,7 +2178,7 @@ export function WeddingPlannerApp() {
                           }
                         />
                         <input
-                          className="rounded-lg border px-3 py-2 text-sm"
+                          className="romantic-input px-3 py-2 text-sm"
                           placeholder="Amount"
                           type="number"
                           min={0}
@@ -2002,7 +2190,7 @@ export function WeddingPlannerApp() {
                         <button
                           type="button"
                           onClick={addCustomBudgetSection}
-                          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                          className="romantic-button-primary px-3 py-2 text-sm font-medium"
                         >
                           Add
                         </button>
@@ -2014,13 +2202,13 @@ export function WeddingPlannerApp() {
               <SectionCard title="Vendor Tracker">
                 {output.vendorSuggestions.length === 0 ? (
                   <div className="max-h-[520px] space-y-3 overflow-y-auto pr-2">
-                    <p className="text-sm text-slate-500">
+                    <p className="romantic-muted text-sm">
                       Add vendor quotes, contracted vendors, or venue details in
                       Notes to populate the vendor tracker.
                     </p>
                     {renderCustomVendorForm()}
                     {vendorStatus && (
-                      <p className="text-sm text-slate-600">{vendorStatus}</p>
+                      <p className="romantic-muted text-sm">{vendorStatus}</p>
                     )}
                   </div>
                 ) : (
@@ -2028,15 +2216,15 @@ export function WeddingPlannerApp() {
                     {output.vendorSuggestions.map((vendor, index) => (
                       <div
                         key={`${vendor.category}-${vendor.name}`}
-                        className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm"
+                        className="rounded-lg border border-[#eaded8] bg-[#fcfbf9]/80 p-3 shadow-sm"
                       >
                         {editingVendorIndex === index ? (
                           <>
                             <div className="grid gap-2 sm:grid-cols-2">
-                              <label className="text-xs font-medium text-slate-600">
+                              <label className="romantic-muted text-xs font-medium">
                                 Category
                                 <select
-                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  className="romantic-input mt-1 w-full px-2 py-2 text-sm"
                                   value={vendor.category}
                                   onChange={(event) =>
                                     updateVendor(index, {
@@ -2051,10 +2239,10 @@ export function WeddingPlannerApp() {
                                   ))}
                                 </select>
                               </label>
-                              <label className="text-xs font-medium text-slate-600">
+                              <label className="romantic-muted text-xs font-medium">
                                 Status
                                 <select
-                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  className="romantic-input mt-1 w-full px-2 py-2 text-sm"
                                   value={vendor.status}
                                   onChange={(event) =>
                                     updateVendor(index, {
@@ -2069,10 +2257,10 @@ export function WeddingPlannerApp() {
                                   </option>
                                 </select>
                               </label>
-                              <label className="text-xs font-medium text-slate-600">
+                              <label className="romantic-muted text-xs font-medium">
                                 Vendor
                                 <input
-                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  className="romantic-input mt-1 w-full px-2 py-2 text-sm"
                                   value={vendor.name}
                                   onChange={(event) =>
                                     updateVendor(index, {
@@ -2081,10 +2269,10 @@ export function WeddingPlannerApp() {
                                   }
                                 />
                               </label>
-                              <label className="text-xs font-medium text-slate-600">
+                              <label className="romantic-muted text-xs font-medium">
                                 Price
                                 <input
-                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  className="romantic-input mt-1 w-full px-2 py-2 text-sm"
                                   value={vendor.priceEstimate}
                                   onChange={(event) =>
                                     updateVendor(index, {
@@ -2093,10 +2281,10 @@ export function WeddingPlannerApp() {
                                   }
                                 />
                               </label>
-                              <label className="text-xs font-medium text-slate-600">
+                              <label className="romantic-muted text-xs font-medium">
                                 Contact
                                 <input
-                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  className="romantic-input mt-1 w-full px-2 py-2 text-sm"
                                   placeholder="Email, phone, Instagram"
                                   value={vendor.contact}
                                   onChange={(event) =>
@@ -2106,10 +2294,10 @@ export function WeddingPlannerApp() {
                                   }
                                 />
                               </label>
-                              <label className="text-xs font-medium text-slate-600">
+                              <label className="romantic-muted text-xs font-medium">
                                 Region
                                 <input
-                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  className="romantic-input mt-1 w-full px-2 py-2 text-sm"
                                   value={vendor.region}
                                   onChange={(event) =>
                                     updateVendor(index, {
@@ -2118,10 +2306,10 @@ export function WeddingPlannerApp() {
                                   }
                                 />
                               </label>
-                              <label className="text-xs font-medium text-slate-600">
+                              <label className="romantic-muted text-xs font-medium">
                                 Source
                                 <input
-                                  className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                  className="romantic-input mt-1 w-full px-2 py-2 text-sm"
                                   value={vendor.source}
                                   onChange={(event) =>
                                     updateVendor(index, {
@@ -2131,10 +2319,10 @@ export function WeddingPlannerApp() {
                                 />
                               </label>
                             </div>
-                            <label className="mt-2 block text-xs font-medium text-slate-600">
+                            <label className="romantic-muted mt-2 block text-xs font-medium">
                               Notes
                               <textarea
-                                className="mt-1 h-20 w-full rounded-lg border bg-white px-2 py-2 text-sm"
+                                className="romantic-input mt-1 h-20 w-full px-2 py-2 text-sm"
                                 value={vendor.whyItFits}
                                 onChange={(event) =>
                                   updateVendor(index, {
@@ -2147,14 +2335,14 @@ export function WeddingPlannerApp() {
                               <button
                                 type="button"
                                 onClick={() => void confirmVendor(vendor)}
-                                className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                                className="romantic-button-primary px-3 py-2 text-sm font-medium"
                               >
                                 Confirm and Save to Notes
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingVendorIndex(null)}
-                                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+                                className="romantic-button-secondary px-3 py-2 text-sm font-medium"
                               >
                                 Cancel
                               </button>
@@ -2165,16 +2353,22 @@ export function WeddingPlannerApp() {
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <p className="text-lg font-semibold text-rose-800">
+                                  <p className="text-lg font-semibold text-[#7c5960]">
                                     {vendor.category}
                                   </p>
-                                  <span className="rounded-md bg-rose-50 px-2 py-1 text-xs font-medium uppercase tracking-wide text-rose-700">
+                                  <span
+                                    className={`rounded-md px-2 py-1 text-xs font-medium uppercase tracking-wide ${
+                                      vendor.status === "contracted"
+                                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                        : "border border-[#f0c6cd] bg-[#f6dfe4] text-[#7c5960]"
+                                    }`}
+                                  >
                                     {vendor.status === "contracted"
                                       ? "Contracted"
                                       : "Needs contract"}
                                   </span>
                                 </div>
-                                <p className="mt-1 text-sm font-medium text-slate-900">
+                                <p className="mt-1 text-sm font-medium text-[#3f332d]">
                                   {vendor.name}
                                 </p>
                               </div>
@@ -2182,7 +2376,7 @@ export function WeddingPlannerApp() {
                                 type="button"
                                 aria-label={`Edit ${vendor.name || vendor.category}`}
                                 onClick={() => setEditingVendorIndex(index)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 text-slate-700"
+                                className="romantic-button-secondary inline-flex h-8 w-8 items-center justify-center p-0 text-[#5f5149]"
                               >
                                 <svg
                                   aria-hidden="true"
@@ -2197,42 +2391,42 @@ export function WeddingPlannerApp() {
                             </div>
                             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                               <div>
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                <dt className="text-xs font-medium uppercase tracking-wide text-[#9a8a82]">
                                   Price
                                 </dt>
-                                <dd className="text-slate-700">
+                                <dd className="text-[#5f5149]">
                                   {vendor.priceEstimate || "not provided"}
                                 </dd>
                               </div>
                               <div>
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                <dt className="text-xs font-medium uppercase tracking-wide text-[#9a8a82]">
                                   Region
                                 </dt>
-                                <dd className="text-slate-700">
+                                <dd className="text-[#5f5149]">
                                   {vendor.region || "not provided"}
                                 </dd>
                               </div>
                               <div className="sm:col-span-2">
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                <dt className="text-xs font-medium uppercase tracking-wide text-[#9a8a82]">
                                   Contact
                                 </dt>
-                                <dd className="text-slate-700">
+                                <dd className="text-[#5f5149]">
                                   {vendor.contact || "not provided"}
                                 </dd>
                               </div>
                               <div className="sm:col-span-2">
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                <dt className="text-xs font-medium uppercase tracking-wide text-[#9a8a82]">
                                   Notes
                                 </dt>
-                                <dd className="line-clamp-3 text-slate-700">
+                                <dd className="line-clamp-3 text-[#5f5149]">
                                   {vendor.whyItFits || "No notes."}
                                 </dd>
                               </div>
                               <div className="sm:col-span-2">
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                <dt className="text-xs font-medium uppercase tracking-wide text-[#9a8a82]">
                                   Source
                                 </dt>
-                                <dd className="text-slate-700">
+                                <dd className="text-[#5f5149]">
                                   {vendor.source || "not provided"}
                                 </dd>
                               </div>
@@ -2243,7 +2437,7 @@ export function WeddingPlannerApp() {
                     ))}
                     {renderCustomVendorForm()}
                     {vendorStatus && (
-                      <p className="text-sm text-slate-600">{vendorStatus}</p>
+                      <p className="romantic-muted text-sm">{vendorStatus}</p>
                     )}
                   </div>
                 )}
@@ -2402,10 +2596,10 @@ function VendorChatLauncher({
       <button
         type="button"
         onClick={onOpen}
-        className="fixed bottom-6 right-6 z-40 rounded-lg border border-rose-300 bg-white px-5 py-4 text-sm font-semibold text-slate-950 shadow-2xl shadow-rose-900/20 ring-4 ring-rose-100"
+        className="fixed bottom-6 right-6 z-40 rounded-lg border border-[#d98c9a]/40 bg-white/90 px-5 py-4 text-sm font-semibold text-[#3f332d] shadow-2xl shadow-[#d98c9a]/20 ring-4 ring-[#f6dfe4]/70 backdrop-blur"
       >
         <span className="block text-left text-base">Find Vendors</span>
-        <span className="block text-xs font-medium text-rose-700">
+        <span className="block text-xs font-medium text-[#9f6d74]">
           Search and save options
         </span>
       </button>
@@ -2413,60 +2607,58 @@ function VendorChatLauncher({
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex h-[min(760px,calc(100vh-3rem))] w-[min(620px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-rose-100 bg-white shadow-2xl shadow-slate-900/25">
-      <div className="border-b border-rose-100 bg-rose-50 p-5">
+    <div className="fixed bottom-6 right-6 z-40 flex h-[min(760px,calc(100vh-3rem))] w-[min(620px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-[#eaded8] bg-white/95 shadow-2xl shadow-[#5c493d]/20 backdrop-blur">
+      <div className="border-b border-[#eaded8] bg-[linear-gradient(135deg,#fffaf4,#f6dfe4_58%,#ebe4f6)] p-5">
         <div className="flex items-start justify-between gap-4">
-        <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">
-              Vendor Research
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-slate-950">
+          <div>
+            <p className="romantic-eyebrow">Vendor Research</p>
+            <p className="mt-1 text-3xl font-semibold text-[#3f332d]">
               Find Vendors
             </p>
-            <p className="mt-1 max-w-md text-sm text-slate-600">
+            <p className="romantic-muted mt-1 max-w-md text-sm">
               Search public vendor websites using your saved wedding profile,
               plan, and notes, then star the options you want to keep.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
             aria-label="Close find vendors panel"
-            className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm"
-        >
-          Close
-        </button>
-      </div>
+            className="romantic-button-secondary px-3 py-2 text-sm font-medium"
+          >
+            Close
+          </button>
+        </div>
 
         <div className="mt-4 flex gap-2 text-sm">
-        <button
-          type="button"
-          onClick={() => onScreenChange("chat")}
+          <button
+            type="button"
+            onClick={() => onScreenChange("chat")}
             className={`rounded-lg px-4 py-2 font-medium shadow-sm ${
-            screen === "chat"
-                ? "bg-slate-950 text-white"
-                : "border border-rose-200 bg-white text-slate-700"
-          }`}
-        >
-          Chat
-        </button>
-        <button
-          type="button"
-          onClick={() => onScreenChange("saved")}
+              screen === "chat"
+                ? "romantic-button-primary"
+                : "romantic-button-secondary"
+            }`}
+          >
+            Chat
+          </button>
+          <button
+            type="button"
+            onClick={() => onScreenChange("saved")}
             className={`rounded-lg px-4 py-2 font-medium shadow-sm ${
-            screen === "saved"
-                ? "bg-slate-950 text-white"
-                : "border border-rose-200 bg-white text-slate-700"
-          }`}
-        >
-          Saved Vendors
-        </button>
-      </div>
+              screen === "saved"
+                ? "romantic-button-primary"
+                : "romantic-button-secondary"
+            }`}
+          >
+            Saved Vendors
+          </button>
+        </div>
       </div>
 
       {screen === "chat" ? (
         <>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50 p-5">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#fcfbf9] p-5">
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
@@ -2478,8 +2670,8 @@ function VendorChatLauncher({
                 <div
                   className={`max-w-[calc(100%-3rem)] rounded-lg p-4 text-sm shadow-sm ${
                     message.role === "user"
-                      ? "border border-rose-100 bg-white text-slate-900"
-                      : "border border-slate-200 bg-white text-slate-800"
+                      ? "border border-[#f6dfe4] bg-white text-[#3f332d]"
+                      : "border border-[#eaded8] bg-white text-[#5f5149]"
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{message.content}</p>
@@ -2492,14 +2684,14 @@ function VendorChatLauncher({
                         return (
                           <div
                             key={`${vendor.name}-${vendor.websiteUrl}`}
-                            className="rounded-lg border border-rose-100 bg-rose-50/50 p-4"
+                            className="rounded-lg border border-[#f6dfe4] bg-[#fffaf4] p-4"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <p className="font-semibold text-slate-900">
+                                <p className="font-semibold text-[#3f332d]">
                                   {vendor.name}
                                 </p>
-                                <p className="text-xs uppercase tracking-wide text-rose-700">
+                                <p className="text-xs uppercase tracking-wide text-[#9f6d74]">
                                   {vendor.category} | {vendor.region}
                                 </p>
                               </div>
@@ -2507,19 +2699,19 @@ function VendorChatLauncher({
                                 type="button"
                                 onClick={() => onSaveVendor(vendor)}
                                 disabled={isSaved}
-                                className="rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                                className="romantic-button-secondary px-3 py-2 text-xs font-semibold disabled:opacity-50"
                               >
                                 {isSaved ? "Starred" : "Star"}
                               </button>
                             </div>
-                            <p className="mt-2 text-sm text-slate-700">
+                            <p className="romantic-muted mt-2 text-sm">
                               {vendor.description}
                             </p>
                             <a
                               href={vendor.websiteUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="mt-2 inline-block break-all text-sm font-medium text-rose-700 underline"
+                              className="mt-2 inline-block break-all text-sm font-medium text-[#9f6d74] underline"
                             >
                               {vendor.websiteUrl}
                             </a>
@@ -2536,7 +2728,7 @@ function VendorChatLauncher({
             ))}
             {isLoading && <Spinner label="Searching vendors..." />}
           </div>
-          <div className="border-t border-rose-100 bg-white p-4">
+          <div className="border-t border-[#eaded8] bg-white p-4">
             {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
             <div className="flex gap-2">
               <input
@@ -2549,13 +2741,13 @@ function VendorChatLauncher({
                   }
                 }}
                 placeholder="Try: floral arrangements in my area"
-                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-inner"
+                className="romantic-input min-w-0 flex-1 px-4 py-3 text-sm"
               />
               <button
                 type="button"
                 onClick={onSend}
                 disabled={isLoading || !input.trim()}
-                className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="romantic-button-primary px-5 py-3 text-sm font-semibold disabled:opacity-50"
               >
                 Send
               </button>
@@ -2563,10 +2755,10 @@ function VendorChatLauncher({
           </div>
         </>
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[#fcfbf9] p-5">
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
           {savedVendors.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+            <p className="romantic-muted rounded-lg border border-[#eaded8] bg-white p-4 text-sm shadow-sm">
               Star vendors from chat to save them here.
             </p>
           ) : (
@@ -2574,31 +2766,31 @@ function VendorChatLauncher({
               {savedVendors.map((vendor) => (
                 <div
                   key={vendor.id}
-                  className="rounded-lg border border-rose-100 bg-white p-4 text-sm shadow-sm"
+                  className="rounded-lg border border-[#eaded8] bg-white p-4 text-sm shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-slate-900">
+                      <p className="font-semibold text-[#3f332d]">
                         {vendor.name}
                       </p>
-                      <p className="text-xs uppercase tracking-wide text-rose-700">
+                      <p className="text-xs uppercase tracking-wide text-[#9f6d74]">
                         {vendor.category} | {vendor.region}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => onRemoveVendor(vendor.id)}
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700"
+                      className="romantic-button-secondary px-3 py-2 text-xs font-medium"
                     >
                       Remove
                     </button>
                   </div>
-                  <p className="mt-2 text-slate-700">{vendor.description}</p>
+                  <p className="romantic-muted mt-2">{vendor.description}</p>
                   <a
                     href={vendor.websiteUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-2 inline-block break-all font-medium text-rose-700 underline"
+                    className="mt-2 inline-block break-all font-medium text-[#9f6d74] underline"
                   >
                     {vendor.websiteUrl}
                   </a>
@@ -2614,9 +2806,9 @@ function VendorChatLauncher({
 
 function ChatBotIcon() {
   return (
-    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-white text-slate-950 shadow-sm ring-2 ring-rose-100">
-      <span className="absolute -top-1.5 left-1/2 h-2.5 w-px -translate-x-1/2 bg-rose-400" />
-      <span className="absolute -top-2.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-rose-500" />
+    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d98c9a]/35 bg-white text-[#3f332d] shadow-sm ring-2 ring-[#f6dfe4]">
+      <span className="absolute -top-1.5 left-1/2 h-2.5 w-px -translate-x-1/2 bg-[#d98c9a]" />
+      <span className="absolute -top-2.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-[#d98c9a]" />
       <svg
         aria-hidden="true"
         className="h-7 w-7"
@@ -2653,14 +2845,14 @@ function UserChatIcon({
     return (
       <div
         aria-label={`${name || "Your"} profile`}
-        className="h-9 w-9 shrink-0 rounded-lg border border-rose-100 bg-cover bg-center shadow-sm"
+        className="h-9 w-9 shrink-0 rounded-lg border border-[#f6dfe4] bg-cover bg-center shadow-sm"
         style={{ backgroundImage: `url("${avatarUrl}")` }}
       />
     );
   }
 
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-100 bg-rose-100 text-sm font-semibold text-rose-800 shadow-sm">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#f6dfe4] bg-[#f6dfe4] text-sm font-semibold text-[#7c5960] shadow-sm">
       {fallback}
     </div>
   );
@@ -2671,29 +2863,71 @@ function AuthenticatedTopBar({
   onSignOut,
   onUploadAvatar,
   isSigningOut,
+  selectedTheme,
+  onThemeChange,
 }: {
   user: PlannerAuthUser;
   onSignOut: () => void;
   onUploadAvatar: (file: File) => Promise<void> | void;
   isSigningOut: boolean;
+  selectedTheme: ThemeKey;
+  onThemeChange: (theme: ThemeKey) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="romantic-card flex items-center justify-between gap-4 px-5 py-4">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-rose-600">
-          Signed in
-        </p>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="romantic-eyebrow">Signed in</p>
+        <p className="romantic-muted mt-1 text-sm">
           Planner data, survey progress, and retrieval notes are scoped to your
           account.
         </p>
       </div>
-      <UserMenu
-        user={user}
-        onSignOut={onSignOut}
-        onUploadAvatar={onUploadAvatar}
-        isSigningOut={isSigningOut}
-      />
+      <div className="flex items-center gap-3">
+        <ThemeSelector selectedTheme={selectedTheme} onThemeChange={onThemeChange} />
+        <UserMenu
+          user={user}
+          onSignOut={onSignOut}
+          onUploadAvatar={onUploadAvatar}
+          isSigningOut={isSigningOut}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ThemeSelector({
+  selectedTheme,
+  onThemeChange,
+}: {
+  selectedTheme: ThemeKey;
+  onThemeChange: (theme: ThemeKey) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2" aria-label="Theme options">
+      {themePalettes.map((theme) => {
+        const isActive = selectedTheme === theme.key;
+        return (
+          <button
+            key={theme.key}
+            type="button"
+            aria-label={`Use ${theme.label} theme`}
+            aria-pressed={isActive}
+            onClick={() => onThemeChange(theme.key)}
+            className={`h-9 w-9 rounded-full border bg-white p-1 shadow-sm transition ${
+              isActive
+                ? "border-[var(--theme-primary)] ring-4 ring-[rgba(var(--theme-primary-rgb),0.16)]"
+                : "border-[#eaded8] hover:-translate-y-0.5 hover:shadow-md"
+            }`}
+          >
+            <span
+              className="block h-full w-full rounded-full"
+              style={{
+                background: `linear-gradient(135deg, ${theme.primary} 0 49%, ${theme.secondary} 50% 100%)`,
+              }}
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -2719,12 +2953,12 @@ function SurveyStepCard({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+      <p className="romantic-eyebrow">
         {question.required ? "Required" : "Optional"}
       </p>
       <h3 className="mt-2 text-2xl font-semibold">{question.label}</h3>
       {question.description && (
-        <p className="mt-2 text-sm text-slate-600">{question.description}</p>
+        <p className="romantic-muted mt-2 text-sm">{question.description}</p>
       )}
       <div className="mt-5 min-h-[200px]">
         <SurveyInput question={question} value={value} onChange={onChange} />
@@ -2742,7 +2976,7 @@ function SurveyInput({
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
-  const baseClass = "w-full rounded-xl border p-4 text-base";
+  const baseClass = "romantic-input w-full p-4 text-base";
 
   if (question.type === "textarea") {
     return (
@@ -2826,9 +3060,7 @@ function SurveyInput({
                 )
               }
               className={`rounded-full px-4 py-3 text-sm ${
-                active
-                  ? "bg-rose-600 text-white"
-                  : "border border-slate-300 bg-white text-slate-700"
+                active ? "romantic-button-primary" : "romantic-button-secondary"
               }`}
             >
               {option.label}
@@ -2870,13 +3102,13 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
   const percentage = `${Math.round((current / total) * 100)}%`;
   return (
     <div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+      <div className="h-2 overflow-hidden rounded-full bg-[#eaded8]">
         <div
-          className="h-full rounded-full bg-rose-500"
+          className="h-full rounded-full bg-[#d98c9a]"
           style={{ width: percentage }}
         />
       </div>
-      <p className="mt-2 text-xs text-slate-500">{percentage} complete</p>
+      <p className="romantic-muted mt-2 text-xs">{percentage} complete</p>
     </div>
   );
 }
@@ -2920,9 +3152,11 @@ function FormField({
 }) {
   return (
     <div>
-      <label className="mt-3 block text-sm font-medium">{label}</label>
+      <label className="mt-3 block text-sm font-medium text-[var(--theme-text)]">
+        {label}
+      </label>
       <input
-        className="mt-1 w-full rounded-xl border p-3"
+        className="romantic-input mt-1 w-full p-3"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -2943,9 +3177,11 @@ function RevisionField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium">{label}</label>
+      <label className="block text-sm font-medium text-[var(--theme-text)]">
+        {label}
+      </label>
       <textarea
-        className="mt-1 h-24 w-full rounded-xl border p-3 text-sm"
+        className="romantic-input mt-1 h-24 w-full p-3 text-sm"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -2967,9 +3203,11 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium">{label}</label>
+      <label className="block text-sm font-medium text-[var(--theme-text)]">
+        {label}
+      </label>
       <select
-        className="mt-1 w-full rounded-xl border p-3 text-sm"
+        className="romantic-input mt-1 w-full p-3 text-sm"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -2985,11 +3223,9 @@ function SelectField({
 
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-lg font-semibold text-slate-900">{value}</p>
+    <div className="rounded-lg border border-[#eaded8] bg-white/70 p-4 shadow-sm">
+      <p className="romantic-eyebrow">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-[#3f332d]">{value}</p>
     </div>
   );
 }
@@ -3002,7 +3238,7 @@ function QuickAction({
   onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="rounded-xl border px-4 py-2">
+    <button onClick={onClick} className="romantic-button-secondary px-4 py-2">
       {label}
     </button>
   );
@@ -3018,9 +3254,9 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 p-4">
+    <div className="rounded-lg border border-[#eaded8] bg-white/72 p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-semibold">{title}</h3>
+        <h3 className="text-xl font-semibold">{title}</h3>
         {action}
       </div>
       <div className="mt-3">{children}</div>
@@ -3036,11 +3272,11 @@ function BulletList({
   emptyText?: string;
 }) {
   if (!items.length) {
-    return <p className="text-sm text-slate-500">{emptyText}</p>;
+    return <p className="romantic-muted text-sm">{emptyText}</p>;
   }
 
   return (
-    <ul className="list-disc space-y-2 pl-5 text-sm text-slate-700">
+    <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-[#5f5149]">
       {items.map((line, idx) => (
         <li key={`${line}-${idx}`}>{line}</li>
       ))}
@@ -3050,19 +3286,22 @@ function BulletList({
 
 function RevisionList({ revisions }: { revisions: StoredSessionOutput[] }) {
   if (!revisions.length) {
-    return <p className="text-sm text-slate-500">No revisions yet.</p>;
+    return <p className="romantic-muted text-sm">No revisions yet.</p>;
   }
 
   return (
-    <ul className="space-y-2 text-sm text-slate-700">
+    <ul className="space-y-2 text-sm text-[#5f5149]">
       {revisions.map((revision, index) => (
-        <li key={revision.id} className="rounded-xl bg-slate-50 p-3">
+        <li
+          key={revision.id}
+          className="rounded-lg border border-[#eaded8] bg-[#fcfbf9]/80 p-3"
+        >
           <p className="font-medium">
             {index === revisions.length - 1 && !revision.revisionRequest
               ? "Initial plan"
               : revision.revisionRequest || "Initial plan"}
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="romantic-muted mt-1 text-xs">
             {new Date(revision.createdAt).toLocaleString()} | rating:{" "}
             {revision.rating || "not rated"}
           </p>
@@ -3075,7 +3314,7 @@ function RevisionList({ revisions }: { revisions: StoredSessionOutput[] }) {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-slate-400">{label}</span>
+      <span className="text-[#d9c8bf]">{label}</span>
       <span className="text-right">{value}</span>
     </div>
   );
