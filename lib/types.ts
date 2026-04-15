@@ -117,6 +117,32 @@ export interface VendorSuggestion {
   whyItFits: string;
 }
 
+export interface SavedVendor {
+  id: string;
+  userId: string;
+  name: string;
+  category: string;
+  region: string;
+  websiteUrl: string;
+  description: string;
+  source: string;
+  createdAt: string;
+}
+
+export interface VendorChatOption {
+  name: string;
+  category: string;
+  region: string;
+  websiteUrl: string;
+  description: string;
+  source: string;
+}
+
+export interface VendorChatMessage {
+  role: "assistant" | "user";
+  content: string;
+}
+
 export interface StructuredResponse {
   summary: string;
   budgetBreakdown: BudgetLineItem[];

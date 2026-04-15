@@ -131,10 +131,43 @@ create index if not exists knowledge_chunks_embedding_idx
   using ivfflat (embedding vector_cosine_ops)
   with (lists = 100);
 
+create table if not exists public.saved_vendors (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  category text not null,
+  region text not null,
+  website_url text not null,
+  description text not null default '',
+  source text not null default 'Vendor chatbot',
+  created_at timestamptz not null default now(),
+  unique (user_id, website_url)
+);
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'saved_vendors'
+      and column_name = 'user_id'
+      and data_type <> 'uuid'
+  ) then
+    alter table public.saved_vendors
+      alter column user_id type uuid
+      using nullif(user_id::text, '')::uuid;
+  end if;
+end $$;
+
+create index if not exists saved_vendors_user_id_idx
+  on public.saved_vendors (user_id);
+
 alter table public.wedding_profiles enable row level security;
 alter table public.planner_sessions enable row level security;
 alter table public.knowledge_documents enable row level security;
 alter table public.knowledge_chunks enable row level security;
+alter table public.saved_vendors enable row level security;
 
 drop policy if exists "wedding_profiles_owner_select" on public.wedding_profiles;
 create policy "wedding_profiles_owner_select"
@@ -191,6 +224,17 @@ create policy "knowledge_chunks_owner_write"
     and nullif(metadata ->> 'user_id', '') is not null
     and (metadata ->> 'user_id') = auth.uid()::text
   );
+
+drop policy if exists "saved_vendors_owner_select" on public.saved_vendors;
+create policy "saved_vendors_owner_select"
+  on public.saved_vendors for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "saved_vendors_owner_write" on public.saved_vendors;
+create policy "saved_vendors_owner_write"
+  on public.saved_vendors for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create or replace function public.match_knowledge_chunks (
   query_embedding vector(1536),

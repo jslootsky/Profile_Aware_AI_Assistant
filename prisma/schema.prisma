@@ -32,3 +32,17 @@ model SessionOutput {
   feedback           String?
   createdAt          DateTime @default(now())
 }
+
+model SavedVendor {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  category    String
+  region      String
+  websiteUrl  String
+  description String
+  source      String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, websiteUrl])
+}

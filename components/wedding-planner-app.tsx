@@ -13,9 +13,12 @@ import {
   BudgetLineItem,
   RagDebugInfo,
   RequestOptions,
+  SavedVendor,
   StoredSessionOutput,
   StructuredResponse,
   SurveyQuestion,
+  VendorChatMessage,
+  VendorChatOption,
   VendorSuggestion,
   WeddingProfile,
 } from "@/lib/types";
@@ -32,6 +35,7 @@ import {
   buildPlanningRequest,
   DEFAULT_PLANNING_REQUEST,
 } from "@/lib/planning-request";
+import { VENDOR_CHAT_INITIAL_MESSAGE } from "@/lib/vendor-chat-shared";
 
 interface KnowledgeDocView {
   id: string;
@@ -39,6 +43,10 @@ interface KnowledgeDocView {
   content: string;
   createdAt: string;
   hasEmbedding: boolean;
+}
+
+interface ChatEntry extends VendorChatMessage {
+  vendors?: VendorChatOption[];
 }
 
 const vendorCategories = [
@@ -201,8 +209,20 @@ export function WeddingPlannerApp() {
   const [isSavingSurvey, setIsSavingSurvey] = useState(false);
   const [isEditingSurvey, setIsEditingSurvey] = useState(false);
   const [showSurveySummary, setShowSurveySummary] = useState(false);
+  const [isVendorChatOpen, setIsVendorChatOpen] = useState(false);
+  const [vendorChatScreen, setVendorChatScreen] = useState<"chat" | "saved">(
+    "chat",
+  );
+  const [vendorChatMessages, setVendorChatMessages] = useState<ChatEntry[]>([
+    { role: "assistant", content: VENDOR_CHAT_INITIAL_MESSAGE },
+  ]);
+  const [vendorChatInput, setVendorChatInput] = useState("");
+  const [isVendorChatLoading, setIsVendorChatLoading] = useState(false);
+  const [vendorChatError, setVendorChatError] = useState<string | null>(null);
+  const [savedVendors, setSavedVendors] = useState<SavedVendor[]>([]);
   const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const taskEditedRef = useRef(false);
+  const authTokenRef = useRef<string | null>(null);
 
   const currentStep = Math.min(
     profile.surveyStep,
@@ -273,6 +293,16 @@ export function WeddingPlannerApp() {
     setShowSurveySummary(false);
     setIsGenerating(false);
     setAvatarStatus(null);
+    setIsVendorChatOpen(false);
+    setVendorChatScreen("chat");
+    setVendorChatMessages([
+      { role: "assistant", content: VENDOR_CHAT_INITIAL_MESSAGE },
+    ]);
+    setVendorChatInput("");
+    setIsVendorChatLoading(false);
+    setVendorChatError(null);
+    setSavedVendors([]);
+    authTokenRef.current = null;
     taskEditedRef.current = false;
   }
 
@@ -282,13 +312,17 @@ export function WeddingPlannerApp() {
   }
 
   function applySession(session: Session | null) {
+    const nextToken = session?.access_token || null;
     if (session) {
       setAuthError(null);
       setIsSigningIn(false);
-      setPlannerDataReady(false);
+      if (nextToken !== authTokenRef.current) {
+        setPlannerDataReady(false);
+      }
     }
     setAuthUser(session?.user ? mapPlannerAuthUser(session.user) : null);
-    setAuthToken(session?.access_token || null);
+    setAuthToken(nextToken);
+    authTokenRef.current = nextToken;
     if (!session) {
       setPlannerDataReady(false);
     }
@@ -412,10 +446,11 @@ export function WeddingPlannerApp() {
           return response;
         };
 
-        const [profileRes, docsRes, plansRes] = await Promise.all([
+        const [profileRes, docsRes, plansRes, savedVendorsRes] = await Promise.all([
           fetchWithToken("/api/profile"),
           fetchWithToken("/api/knowledge"),
           fetchWithToken("/api/plans"),
+          fetchWithToken("/api/saved-vendors"),
         ]);
 
         if (!active) return;
@@ -446,6 +481,13 @@ export function WeddingPlannerApp() {
             revisions: StoredSessionOutput[];
           };
           setSavedRevisions(data.revisions);
+        }
+
+        if (savedVendorsRes.ok) {
+          const data = (await savedVendorsRes.json()) as {
+            vendors: SavedVendor[];
+          };
+          setSavedVendors(data.vendors);
         }
       } catch (loadError) {
         if (!active) return;
@@ -731,6 +773,102 @@ export function WeddingPlannerApp() {
       );
     } finally {
       setIsGenerating(false);
+    }
+  }
+
+  async function sendVendorChatMessage() {
+    const content = vendorChatInput.trim();
+    if (!content || isVendorChatLoading) return;
+
+    const nextMessages: ChatEntry[] = [
+      ...vendorChatMessages,
+      { role: "user", content },
+    ];
+    setVendorChatMessages(nextMessages);
+    setVendorChatInput("");
+    setVendorChatError(null);
+    setIsVendorChatLoading(true);
+
+    try {
+      const res = await authorizedFetch("/api/vendor-chat", {
+        method: "POST",
+        body: JSON.stringify({
+          messages: nextMessages.map(({ role, content: messageContent }) => ({
+            role,
+            content: messageContent,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        setVendorChatError(`Vendor chat failed (${res.status}): ${text}`);
+        return;
+      }
+
+      const data = (await res.json()) as {
+        message: string;
+        vendors: VendorChatOption[];
+      };
+
+      setVendorChatMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: data.message,
+          vendors: data.vendors,
+        },
+      ]);
+    } catch (chatError) {
+      setVendorChatError((chatError as Error).message);
+    } finally {
+      setIsVendorChatLoading(false);
+    }
+  }
+
+  async function saveChatVendor(vendor: VendorChatOption) {
+    setVendorChatError(null);
+
+    try {
+      const res = await authorizedFetch("/api/saved-vendors", {
+        method: "POST",
+        body: JSON.stringify(vendor),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        setVendorChatError(`Could not save vendor (${res.status}): ${text}`);
+        return;
+      }
+
+      const data = (await res.json()) as { vendor: SavedVendor };
+      setSavedVendors((current) => [
+        data.vendor,
+        ...current.filter((item) => item.id !== data.vendor.id),
+      ]);
+    } catch (saveError) {
+      setVendorChatError((saveError as Error).message);
+    }
+  }
+
+  async function removeSavedVendor(id: string) {
+    const previous = savedVendors;
+    setSavedVendors((current) => current.filter((vendor) => vendor.id !== id));
+    setVendorChatError(null);
+
+    try {
+      const res = await authorizedFetch(`/api/saved-vendors/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        setVendorChatError(`Could not remove vendor (${res.status}): ${text}`);
+        setSavedVendors(previous);
+      }
+    } catch (removeError) {
+      setVendorChatError((removeError as Error).message);
+      setSavedVendors(previous);
     }
   }
 
@@ -2170,6 +2308,24 @@ export function WeddingPlannerApp() {
             </div>
           )}
         </section>
+        <VendorChatLauncher
+          isOpen={isVendorChatOpen}
+          screen={vendorChatScreen}
+          messages={vendorChatMessages}
+          userAvatarUrl={profile.avatarUrl || authUser.avatarUrl}
+          userName={authUser.name || authUser.email || profile.partnerNames}
+          input={vendorChatInput}
+          isLoading={isVendorChatLoading}
+          error={vendorChatError}
+          savedVendors={savedVendors}
+          onOpen={() => setIsVendorChatOpen(true)}
+          onClose={() => setIsVendorChatOpen(false)}
+          onScreenChange={setVendorChatScreen}
+          onInputChange={setVendorChatInput}
+          onSend={() => void sendVendorChatMessage()}
+          onSaveVendor={(vendor) => void saveChatVendor(vendor)}
+          onRemoveVendor={(id) => void removeSavedVendor(id)}
+        />
         {showDeleteToast && deletedNote && (
           <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-xl bg-slate-950 p-4 text-sm text-white shadow-xl">
             <div className="flex items-center gap-3">
@@ -2199,6 +2355,314 @@ export function WeddingPlannerApp() {
         )}
       </div>
     </main>
+  );
+}
+
+function VendorChatLauncher({
+  isOpen,
+  screen,
+  messages,
+  userAvatarUrl,
+  userName,
+  input,
+  isLoading,
+  error,
+  savedVendors,
+  onOpen,
+  onClose,
+  onScreenChange,
+  onInputChange,
+  onSend,
+  onSaveVendor,
+  onRemoveVendor,
+}: {
+  isOpen: boolean;
+  screen: "chat" | "saved";
+  messages: ChatEntry[];
+  userAvatarUrl?: string;
+  userName?: string;
+  input: string;
+  isLoading: boolean;
+  error: string | null;
+  savedVendors: SavedVendor[];
+  onOpen: () => void;
+  onClose: () => void;
+  onScreenChange: (screen: "chat" | "saved") => void;
+  onInputChange: (value: string) => void;
+  onSend: () => void;
+  onSaveVendor: (vendor: VendorChatOption) => void;
+  onRemoveVendor: (id: string) => void;
+}) {
+  const savedUrls = new Set(
+    savedVendors.map((vendor) => vendor.websiteUrl.toLowerCase()),
+  );
+
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="fixed bottom-6 right-6 z-40 rounded-lg border border-rose-300 bg-white px-5 py-4 text-sm font-semibold text-slate-950 shadow-2xl shadow-rose-900/20 ring-4 ring-rose-100"
+      >
+        <span className="block text-left text-base">Find Vendors</span>
+        <span className="block text-xs font-medium text-rose-700">
+          Search and save options
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed bottom-6 right-6 z-40 flex h-[min(760px,calc(100vh-3rem))] w-[min(620px,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-rose-100 bg-white shadow-2xl shadow-slate-900/25">
+      <div className="border-b border-rose-100 bg-rose-50 p-5">
+        <div className="flex items-start justify-between gap-4">
+        <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">
+              Vendor Research
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-slate-950">
+              Find Vendors
+            </p>
+            <p className="mt-1 max-w-md text-sm text-slate-600">
+              Search public vendor websites using your saved wedding profile,
+              plan, and notes, then star the options you want to keep.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+            aria-label="Close find vendors panel"
+            className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm"
+        >
+          Close
+        </button>
+      </div>
+
+        <div className="mt-4 flex gap-2 text-sm">
+        <button
+          type="button"
+          onClick={() => onScreenChange("chat")}
+            className={`rounded-lg px-4 py-2 font-medium shadow-sm ${
+            screen === "chat"
+                ? "bg-slate-950 text-white"
+                : "border border-rose-200 bg-white text-slate-700"
+          }`}
+        >
+          Chat
+        </button>
+        <button
+          type="button"
+          onClick={() => onScreenChange("saved")}
+            className={`rounded-lg px-4 py-2 font-medium shadow-sm ${
+            screen === "saved"
+                ? "bg-slate-950 text-white"
+                : "border border-rose-200 bg-white text-slate-700"
+          }`}
+        >
+          Saved Vendors
+        </button>
+      </div>
+      </div>
+
+      {screen === "chat" ? (
+        <>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-slate-50 p-5">
+            {messages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={`flex items-start gap-3 ${
+                  message.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                {message.role === "assistant" && <ChatBotIcon />}
+                <div
+                  className={`max-w-[calc(100%-3rem)] rounded-lg p-4 text-sm shadow-sm ${
+                    message.role === "user"
+                      ? "border border-rose-100 bg-white text-slate-900"
+                      : "border border-slate-200 bg-white text-slate-800"
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  {message.vendors?.length ? (
+                    <div className="mt-4 grid gap-3">
+                      {message.vendors.map((vendor) => {
+                        const isSaved = savedUrls.has(
+                          vendor.websiteUrl.toLowerCase(),
+                        );
+                        return (
+                          <div
+                            key={`${vendor.name}-${vendor.websiteUrl}`}
+                            className="rounded-lg border border-rose-100 bg-rose-50/50 p-4"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="font-semibold text-slate-900">
+                                  {vendor.name}
+                                </p>
+                                <p className="text-xs uppercase tracking-wide text-rose-700">
+                                  {vendor.category} | {vendor.region}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => onSaveVendor(vendor)}
+                                disabled={isSaved}
+                                className="rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                              >
+                                {isSaved ? "Starred" : "Star"}
+                              </button>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-700">
+                              {vendor.description}
+                            </p>
+                            <a
+                              href={vendor.websiteUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-2 inline-block break-all text-sm font-medium text-rose-700 underline"
+                            >
+                              {vendor.websiteUrl}
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+                {message.role === "user" && (
+                  <UserChatIcon avatarUrl={userAvatarUrl} name={userName} />
+                )}
+              </div>
+            ))}
+            {isLoading && <Spinner label="Searching vendors..." />}
+          </div>
+          <div className="border-t border-rose-100 bg-white p-4">
+            {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+            <div className="flex gap-2">
+              <input
+                value={input}
+                onChange={(event) => onInputChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    onSend();
+                  }
+                }}
+                placeholder="Try: floral arrangements in my area"
+                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm shadow-inner"
+              />
+              <button
+                type="button"
+                onClick={onSend}
+                disabled={isLoading || !input.trim()}
+                className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-5">
+          {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+          {savedVendors.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+              Star vendors from chat to save them here.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {savedVendors.map((vendor) => (
+                <div
+                  key={vendor.id}
+                  className="rounded-lg border border-rose-100 bg-white p-4 text-sm shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {vendor.name}
+                      </p>
+                      <p className="text-xs uppercase tracking-wide text-rose-700">
+                        {vendor.category} | {vendor.region}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveVendor(vendor.id)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <p className="mt-2 text-slate-700">{vendor.description}</p>
+                  <a
+                    href={vendor.websiteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block break-all font-medium text-rose-700 underline"
+                  >
+                    {vendor.websiteUrl}
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChatBotIcon() {
+  return (
+    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-white text-slate-950 shadow-sm ring-2 ring-rose-100">
+      <span className="absolute -top-1.5 left-1/2 h-2.5 w-px -translate-x-1/2 bg-rose-400" />
+      <span className="absolute -top-2.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-rose-500" />
+      <svg
+        aria-hidden="true"
+        className="h-7 w-7"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="5.5" y="7" width="13" height="11" rx="3" fill="#fff1f2" />
+        <path d="M5.5 12H4M20 12h-1.5" />
+        <circle cx="9.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+        <circle cx="14.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+        <path d="M10 15.2h4" />
+        <path d="M8.5 7V5.8M15.5 7V5.8" />
+        <path d="M9 19h6" />
+      </svg>
+      <span className="sr-only">Chatbot</span>
+    </div>
+  );
+}
+
+function UserChatIcon({
+  avatarUrl,
+  name,
+}: {
+  avatarUrl?: string;
+  name?: string;
+}) {
+  const fallback = (name || "You").trim().charAt(0).toUpperCase() || "Y";
+
+  if (avatarUrl) {
+    return (
+      <div
+        aria-label={`${name || "Your"} profile`}
+        className="h-9 w-9 shrink-0 rounded-lg border border-rose-100 bg-cover bg-center shadow-sm"
+        style={{ backgroundImage: `url("${avatarUrl}")` }}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-100 bg-rose-100 text-sm font-semibold text-rose-800 shadow-sm">
+      {fallback}
+    </div>
   );
 }
 
