@@ -107,6 +107,12 @@ export async function generateVendorChatResponse({
   const latestUserMessage =
     [...messages].reverse().find((message) => message.role === "user")?.content ||
     "";
+  const savedVendorUrls = new Set(
+    savedVendors.map((vendor) => vendor.websiteUrl.toLowerCase()),
+  );
+  const savedVendorNames = new Set(
+    savedVendors.map((vendor) => vendor.name.toLowerCase()),
+  );
 
   const retrieval = await retrievePlanningContext(
     userId,
@@ -119,7 +125,7 @@ export async function generateVendorChatResponse({
     `Initial chatbot message shown to the user and treated as context:\n${VENDOR_CHAT_INITIAL_MESSAGE}`,
     `Wedding survey profile:\n${JSON.stringify(profile, null, 2)}`,
     `Latest saved plan:\n${summarizePlan(latestPlan)}`,
-    `Already starred vendors:\n${summarizeSavedVendors(savedVendors)}`,
+    `Already starred vendors, included only so you can avoid repeating them unless the user explicitly asks about saved vendors:\n${summarizeSavedVendors(savedVendors)}`,
     `Retrieved planning notes:\n${
       retrieval.documentRetrieval.snippets.length
         ? retrieval.documentRetrieval.snippets
@@ -146,7 +152,7 @@ export async function generateVendorChatResponse({
       {
         role: "system",
         content:
-          "You are a wedding vendor research assistant. Use the supplied profile, saved plan, saved vendors, and retrieved notes as context. For vendor discovery, use web search and return only vendors with public website URLs. Do not invent vendors, pricing, availability, or reviews. Prefer vendors near the user's wedding location. Keep the message concise and helpful.",
+          "You are a wedding vendor research assistant. Use the supplied profile, saved plan, saved vendors, and retrieved notes as context. For vendor discovery, use web search and return only vendors with public website URLs. Do not invent vendors, pricing, availability, or reviews. Prefer vendors near the user's wedding location. Saved vendors are already starred; do not return them again unless the user explicitly asks to see or discuss saved vendors. Keep the message concise and helpful.",
       },
       {
         role: "user",
@@ -175,6 +181,11 @@ export async function generateVendorChatResponse({
     vendors: (parsed.vendors || [])
       .map(normalizeVendor)
       .filter((vendor): vendor is VendorChatOption => Boolean(vendor))
+      .filter(
+        (vendor) =>
+          !savedVendorUrls.has(vendor.websiteUrl.toLowerCase()) &&
+          !savedVendorNames.has(vendor.name.toLowerCase()),
+      )
       .slice(0, 5),
     context,
   };
