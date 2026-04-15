@@ -68,7 +68,7 @@ export function UserMenu({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm"
+        className="romantic-button-secondary flex items-center gap-3 rounded-full px-3 py-2"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -76,13 +76,13 @@ export function UserMenu({
           alt={displayName}
           className="h-9 w-9 rounded-full object-cover"
         />
-        <span className="hidden text-sm font-medium text-slate-700 sm:block">
+        <span className="hidden text-sm font-medium text-[#5f5149] sm:block">
           {displayName}
         </span>
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-3 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+        <div className="romantic-card absolute right-0 z-20 mt-3 w-64 p-3">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -91,9 +91,9 @@ export function UserMenu({
               className="h-12 w-12 rounded-full object-cover"
             />
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
+              <p className="truncate text-sm font-semibold text-[#3f332d]">{displayName}</p>
               {user.email && (
-                <p className="mt-1 truncate text-xs text-slate-500">{user.email}</p>
+                <p className="romantic-muted mt-1 truncate text-xs">{user.email}</p>
               )}
             </div>
           </div>
@@ -102,7 +102,7 @@ export function UserMenu({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2 text-left text-sm font-medium text-slate-700 disabled:opacity-50"
+              className="romantic-button-secondary w-full px-4 py-2 text-left text-sm font-medium disabled:opacity-50"
             >
               {isUploading ? "Uploading photo..." : "Upload profile picture"}
             </button>
@@ -114,7 +114,7 @@ export function UserMenu({
               onSignOut();
             }}
             disabled={isSigningOut}
-            className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-2 text-left text-sm font-medium text-slate-700 disabled:opacity-50"
+            className="romantic-button-secondary mt-4 w-full px-4 py-2 text-left text-sm font-medium disabled:opacity-50"
           >
             {isSigningOut ? "Signing out..." : "Sign out"}
           </button>
@@ -150,11 +150,11 @@ function getDefaultAvatarDataUrl(displayName: string) {
 
 function selectAvatarPalette(seed: string) {
   const palettes = [
-    { start: "#fb7185", end: "#f97316", text: "#fff7ed" },
-    { start: "#38bdf8", end: "#2563eb", text: "#eff6ff" },
-    { start: "#34d399", end: "#059669", text: "#ecfdf5" },
-    { start: "#a78bfa", end: "#7c3aed", text: "#f5f3ff" },
-    { start: "#f59e0b", end: "#ef4444", text: "#fffbeb" },
+    { start: "#f6dfe4", end: "#d98c9a", text: "#5f3f45" },
+    { start: "#dfe9dc", end: "#7d9a7b", text: "#394b38" },
+    { start: "#ebe4f6", end: "#a995c9", text: "#4f4261" },
+    { start: "#fffaf4", end: "#f1d8bd", text: "#5d4636" },
+    { start: "#f4e9dc", end: "#d8b7a0", text: "#5d4636" },
   ];
   const index =
     seed.split("").reduce((total, char) => total + char.charCodeAt(0), 0) %
