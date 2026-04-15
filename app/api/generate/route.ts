@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       threadId: incoming.threadId,
       previousOutput: incoming.previousOutput || null,
       revisionRequest: incoming.revisionRequest ?? "",
-      options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}) },
+      options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}), citeSources: true },
     };
 
     // Resolve user identity (cookie/header) and persist profile

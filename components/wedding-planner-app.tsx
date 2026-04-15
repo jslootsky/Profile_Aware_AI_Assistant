@@ -92,7 +92,9 @@ function normalizeBudgetLineItem(item: BudgetLineItem): BudgetLineItem {
   };
 }
 
-function normalizeStructuredResponse(response: StructuredResponse): StructuredResponse {
+function normalizeStructuredResponse(
+  response: StructuredResponse,
+): StructuredResponse {
   return {
     ...response,
     budgetBreakdown: response.budgetBreakdown.map(normalizeBudgetLineItem),
@@ -160,12 +162,16 @@ export function WeddingPlannerApp() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [avatarStatus, setAvatarStatus] = useState<string | null>(null);
 
-  const [profile, setProfile] = useState<WeddingProfile>(DEFAULT_WEDDING_PROFILE);
+  const [profile, setProfile] = useState<WeddingProfile>(
+    DEFAULT_WEDDING_PROFILE,
+  );
   const [task, setTask] = useState("");
   const [revisionChange, setRevisionChange] = useState("");
   const [options, setOptions] = useState<RequestOptions>(defaultOptions);
   const [revisions, setRevisions] = useState<StoredSessionOutput[]>([]);
-  const [savedRevisions, setSavedRevisions] = useState<StoredSessionOutput[]>([]);
+  const [savedRevisions, setSavedRevisions] = useState<StoredSessionOutput[]>(
+    [],
+  );
   const [output, setOutput] = useState<StructuredResponse | null>(null);
   const [latestPrompt, setLatestPrompt] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -181,11 +187,14 @@ export function WeddingPlannerApp() {
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [knowledgeStatus, setKnowledgeStatus] = useState<string | null>(null);
   const [vendorStatus, setVendorStatus] = useState<string | null>(null);
-  const [customVendor, setCustomVendor] = useState<VendorSuggestion>(emptyVendorDraft);
+  const [customVendor, setCustomVendor] =
+    useState<VendorSuggestion>(emptyVendorDraft);
   const [customBudgetCategory, setCustomBudgetCategory] = useState("");
   const [customBudgetAmount, setCustomBudgetAmount] = useState("");
   const [isEditingBudget, setIsEditingBudget] = useState(false);
-  const [editingVendorIndex, setEditingVendorIndex] = useState<number | null>(null);
+  const [editingVendorIndex, setEditingVendorIndex] = useState<number | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [surveyStatus, setSurveyStatus] = useState<string | null>(null);
@@ -195,17 +204,25 @@ export function WeddingPlannerApp() {
   const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const taskEditedRef = useRef(false);
 
-  const currentStep = Math.min(profile.surveyStep, weddingSurveySchema.length - 1);
+  const currentStep = Math.min(
+    profile.surveyStep,
+    weddingSurveySchema.length - 1,
+  );
   const currentQuestion = weddingSurveySchema[currentStep];
   const isOnboardingComplete =
     isWeddingProfileComplete(profile) && profile.onboardingComplete;
   const isSurveyMode = !isOnboardingComplete || isEditingSurvey;
   const canJumpBetweenQuestions = isOnboardingComplete && isEditingSurvey;
-  const budgetSnapshot = useMemo(() => calculateWeddingBudget(profile), [profile]);
+  const budgetSnapshot = useMemo(
+    () => calculateWeddingBudget(profile),
+    [profile],
+  );
   const planTotal = useMemo(
     () =>
-      output?.budgetBreakdown.reduce((total, item) => total + getBudgetAmount(item), 0) ??
-      0,
+      output?.budgetBreakdown.reduce(
+        (total, item) => total + getBudgetAmount(item),
+        0,
+      ) ?? 0,
     [output],
   );
   const isPlanWithinBudget = planTotal <= profile.totalBudget;
@@ -355,7 +372,12 @@ export function WeddingPlannerApp() {
   }, []);
 
   useEffect(() => {
-    if (!isOnboardingComplete || output || taskEditedRef.current || task.trim()) {
+    if (
+      !isOnboardingComplete ||
+      output ||
+      taskEditedRef.current ||
+      task.trim()
+    ) {
       return;
     }
 
@@ -399,7 +421,9 @@ export function WeddingPlannerApp() {
         if (!active) return;
 
         if (profileRes.ok) {
-          const data = (await profileRes.json()) as { profile: WeddingProfile | null };
+          const data = (await profileRes.json()) as {
+            profile: WeddingProfile | null;
+          };
           const mergedProfile = mergeWeddingProfile(data.profile);
           setProfile(mergedProfile);
           setAuthUser((prev) =>
@@ -425,7 +449,9 @@ export function WeddingPlannerApp() {
         }
       } catch (loadError) {
         if (!active) return;
-        setError(`Could not load planner data: ${(loadError as Error).message}`);
+        setError(
+          `Could not load planner data: ${(loadError as Error).message}`,
+        );
       } finally {
         if (active) {
           setPlannerDataReady(true);
@@ -592,14 +618,19 @@ export function WeddingPlannerApp() {
   async function goToSurveyStep(nextStep: number) {
     const nextProfile = mergeWeddingProfile({
       ...profile,
-      surveyStep: Math.max(0, Math.min(nextStep, weddingSurveySchema.length - 1)),
+      surveyStep: Math.max(
+        0,
+        Math.min(nextStep, weddingSurveySchema.length - 1),
+      ),
       onboardingComplete: isEditingSurvey ? profile.onboardingComplete : false,
     });
     await persistProfile(nextProfile, "Survey progress saved.");
   }
 
   async function handleNextSurveyStep() {
-    const partialValidation = validateWeddingProfile(profile, { allowIncomplete: true });
+    const partialValidation = validateWeddingProfile(profile, {
+      allowIncomplete: true,
+    });
     if (!partialValidation.valid) {
       setError(partialValidation.errors.join(" "));
       return;
@@ -647,7 +678,7 @@ export function WeddingPlannerApp() {
       threadId: threadId || undefined,
       previousOutput: output,
       revisionRequest,
-      options,
+      options: { ...options, citeSources: true },
     };
 
     try {
@@ -695,7 +726,9 @@ export function WeddingPlannerApp() {
       setSaveStatus("Draft saved automatically.");
       setRevisionChange("");
     } catch (submitError) {
-      setError(`Network error while planning: ${(submitError as Error).message}`);
+      setError(
+        `Network error while planning: ${(submitError as Error).message}`,
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -732,7 +765,9 @@ export function WeddingPlannerApp() {
       return;
     }
 
-    const url = editingDocId ? `/api/knowledge/${editingDocId}` : "/api/knowledge";
+    const url = editingDocId
+      ? `/api/knowledge/${editingDocId}`
+      : "/api/knowledge";
     const method = editingDocId ? "PUT" : "POST";
     const res = await authorizedFetch(url, {
       method,
@@ -775,8 +810,9 @@ export function WeddingPlannerApp() {
       if (!current) return current;
       return {
         ...current,
-        vendorSuggestions: current.vendorSuggestions.map((vendor, vendorIndex) =>
-          vendorIndex === index ? { ...vendor, ...patch } : vendor,
+        vendorSuggestions: current.vendorSuggestions.map(
+          (vendor, vendorIndex) =>
+            vendorIndex === index ? { ...vendor, ...patch } : vendor,
         ),
       };
     });
@@ -881,7 +917,9 @@ export function WeddingPlannerApp() {
     const category = customBudgetCategory.trim();
     const amount = Number(customBudgetAmount);
     if (!category || !Number.isFinite(amount) || amount < 0) {
-      setError("Enter a custom budget category and a single non-negative number.");
+      setError(
+        "Enter a custom budget category and a single non-negative number.",
+      );
       return;
     }
 
@@ -1036,7 +1074,9 @@ export function WeddingPlannerApp() {
     const removedDoc = knowledgeDocs.find((doc) => doc.id === id);
     setKnowledgeDocs((docs) => docs.filter((doc) => doc.id !== id));
 
-    const res = await authorizedFetch(`/api/knowledge/${id}`, { method: "DELETE" });
+    const res = await authorizedFetch(`/api/knowledge/${id}`, {
+      method: "DELETE",
+    });
     if (!res.ok) {
       const text = await res.text();
       setKnowledgeDocs(previousDocs);
@@ -1085,7 +1125,9 @@ export function WeddingPlannerApp() {
 
     if (!res.ok) {
       const text = await res.text();
-      setKnowledgeDocs((docs) => docs.filter((doc) => doc.id !== noteToRestore.id));
+      setKnowledgeDocs((docs) =>
+        docs.filter((doc) => doc.id !== noteToRestore.id),
+      );
       setKnowledgeStatus(`Undo failed (${res.status}): ${text}`);
       return;
     }
@@ -1148,17 +1190,30 @@ export function WeddingPlannerApp() {
               Your planning profile is ready.
             </h1>
             <p className="mt-3 max-w-2xl text-base text-slate-600">
-              The planner will use these details to keep recommendations grounded in your budget, guest count, priorities, and constraints.
+              The planner will use these details to keep recommendations
+              grounded in your budget, guest count, priorities, and constraints.
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <SummaryTile label="Budget" value={`$${profile.totalBudget.toLocaleString()}`} />
+              <SummaryTile
+                label="Budget"
+                value={`$${profile.totalBudget.toLocaleString()}`}
+              />
               <SummaryTile label="Guests" value={String(profile.guestCount)} />
-              <SummaryTile label="Location" value={profile.location || "Not set"} />
-              <SummaryTile label="Budget / Guest" value={`$${budgetSnapshot.budgetPerGuest}`} />
+              <SummaryTile
+                label="Location"
+                value={profile.location || "Not set"}
+              />
+              <SummaryTile
+                label="Budget / Guest"
+                value={`$${budgetSnapshot.budgetPerGuest}`}
+              />
               <SummaryTile
                 label="Priorities"
-                value={profile.priorities.map(formatPriorityLabel).join(", ") || "None"}
+                value={
+                  profile.priorities.map(formatPriorityLabel).join(", ") ||
+                  "None"
+                }
               />
               <SummaryTile label="Style" value={profile.style || "Not set"} />
             </div>
@@ -1196,7 +1251,9 @@ export function WeddingPlannerApp() {
             onUploadAvatar={handleAvatarUpload}
             isSigningOut={isSigningOut}
           />
-          {avatarStatus && <p className="mt-3 text-sm text-slate-600">{avatarStatus}</p>}
+          {avatarStatus && (
+            <p className="mt-3 text-sm text-slate-600">{avatarStatus}</p>
+          )}
         </div>
         <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-6xl items-center justify-center">
           <section
@@ -1211,9 +1268,12 @@ export function WeddingPlannerApp() {
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-rose-600">
                   Survey Map
                 </p>
-                <h2 className="mt-2 text-xl font-semibold">Jump to a question</h2>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Jump to a question
+                </h2>
                 <p className="mt-2 text-sm text-slate-600">
-                  Available only in edit mode after the survey has been completed.
+                  Available only in edit mode after the survey has been
+                  completed.
                 </p>
                 <div className="mt-5 space-y-2">
                   {weddingSurveySchema.map((question, index) => {
@@ -1232,7 +1292,9 @@ export function WeddingPlannerApp() {
                         <span className="block text-xs uppercase tracking-wide text-slate-400">
                           Step {index + 1}
                         </span>
-                        <span className="mt-1 block font-medium">{question.label}</span>
+                        <span className="mt-1 block font-medium">
+                          {question.label}
+                        </span>
                       </button>
                     );
                   })}
@@ -1263,7 +1325,10 @@ export function WeddingPlannerApp() {
               </div>
 
               <div className="mt-6">
-                <ProgressBar current={currentStep + 1} total={weddingSurveySchema.length} />
+                <ProgressBar
+                  current={currentStep + 1}
+                  total={weddingSurveySchema.length}
+                />
               </div>
 
               <div className="mt-8 rounded-[1.5rem] bg-slate-50 p-6">
@@ -1319,12 +1384,16 @@ export function WeddingPlannerApp() {
                     onClick={() => void handleNextSurveyStep()}
                     className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
                   >
-                    {currentStep === weddingSurveySchema.length - 1 ? "Finish" : "Next"}
+                    {currentStep === weddingSurveySchema.length - 1
+                      ? "Finish"
+                      : "Next"}
                   </button>
                 </div>
               </div>
 
-              {surveyStatus && <p className="mt-4 text-sm text-slate-600">{surveyStatus}</p>}
+              {surveyStatus && (
+                <p className="mt-4 text-sm text-slate-600">{surveyStatus}</p>
+              )}
               {(error || authError) && (
                 <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   {error || authError}
@@ -1335,7 +1404,8 @@ export function WeddingPlannerApp() {
             <aside className="self-start rounded-[2rem] bg-slate-950 p-8 text-white shadow-xl">
               <h2 className="text-2xl font-semibold">Live planning snapshot</h2>
               <p className="mt-3 text-sm text-slate-300">
-                These numbers update as you answer the survey so you can see how your constraints shape the plan.
+                These numbers update as you answer the survey so you can see how
+                your constraints shape the plan.
               </p>
               <div className="mt-6 grid gap-4 text-sm">
                 <InfoRow
@@ -1348,7 +1418,11 @@ export function WeddingPlannerApp() {
                 />
                 <InfoRow
                   label="Guests"
-                  value={profile.guestCount > 0 ? String(profile.guestCount) : "Not set"}
+                  value={
+                    profile.guestCount > 0
+                      ? String(profile.guestCount)
+                      : "Not set"
+                  }
                 />
                 <InfoRow
                   label="Budget / Guest"
@@ -1358,14 +1432,18 @@ export function WeddingPlannerApp() {
                       : "Not set"
                   }
                 />
-                <InfoRow label="Location" value={profile.location || "Not set"} />
+                <InfoRow
+                  label="Location"
+                  value={profile.location || "Not set"}
+                />
                 <InfoRow label="Season" value={profile.season || "Not set"} />
                 <InfoRow label="Style" value={profile.style || "Not set"} />
               </div>
               <div className="mt-6 rounded-2xl bg-slate-900 p-4">
                 <h3 className="font-medium">Protected priorities</h3>
                 <p className="mt-2 text-sm text-slate-300">
-                  {profile.priorities.map(formatPriorityLabel).join(", ") || "None"}
+                  {profile.priorities.map(formatPriorityLabel).join(", ") ||
+                    "None"}
                 </p>
               </div>
               <div className="mt-6 space-y-3">
@@ -1380,7 +1458,8 @@ export function WeddingPlannerApp() {
                   ))
                 ) : (
                   <div className="rounded-xl bg-slate-900 p-3 text-sm text-slate-300">
-                    Tradeoffs will appear as your budget and guest count become clearer.
+                    Tradeoffs will appear as your budget and guest count become
+                    clearer.
                   </div>
                 )}
               </div>
@@ -1400,16 +1479,21 @@ export function WeddingPlannerApp() {
           onUploadAvatar={handleAvatarUpload}
           isSigningOut={isSigningOut}
         />
-        {avatarStatus && <p className="mt-3 text-sm text-slate-600">{avatarStatus}</p>}
+        {avatarStatus && (
+          <p className="mt-3 text-sm text-slate-600">{avatarStatus}</p>
+        )}
 
         <header className="mt-6 rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
             Budget Wedding Planner
           </p>
-          <h1 className="mt-2 text-3xl font-bold">Plan a wedding that fits real constraints.</h1>
+          <h1 className="mt-2 text-3xl font-bold">
+            Plan a wedding that fits real constraints.
+          </h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-700">
-            You are signed in and planning against your saved wedding profile. Refine costs,
-            guest count, priorities, and vendor choices without losing context.
+            You are signed in and planning against your saved wedding profile.
+            Refine costs, guest count, priorities, and vendor choices without
+            losing context.
           </p>
           <div className="mt-4">
             <button
@@ -1429,9 +1513,11 @@ export function WeddingPlannerApp() {
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-            <h2 className="text-xl font-semibold">1) Planner</h2>
+            <h2 className="text-xl font-semibold">Planner</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Follow-ups stay grounded in your saved wedding profile.
+              Tell the planner what kind of wedding plan you want. It will use
+              your saved survey answers and notes automatically, including
+              vendor quotes, constraints, and priorities.
             </p>
 
             {!isOnboardingComplete && (
@@ -1440,9 +1526,13 @@ export function WeddingPlannerApp() {
               </div>
             )}
 
-            <label className="mt-4 block text-sm font-medium">What to plan</label>
+            <label className="mt-4 block text-sm font-medium">
+              Planning request
+            </label>
             <p className="mt-1 text-sm text-slate-600">
-              Based on your profile - edit anything before generating.
+              Start with the suggested request or replace it with your own
+              instructions. Mention goals like budget limits, guest count,
+              must-haves, tradeoffs, or vendor categories that need attention.
             </p>
             <textarea
               className="mt-1 h-32 w-full rounded-xl border p-3"
@@ -1456,9 +1546,13 @@ export function WeddingPlannerApp() {
 
             {output && (
               <>
-                <label className="mt-4 block text-sm font-medium">Revise this plan</label>
+                <label className="mt-4 block text-sm font-medium">
+                  Revise this plan
+                </label>
                 <p className="mt-1 text-sm text-slate-600">
-                  Describe only what should change. Anything not mentioned will be kept.
+                  Use this for follow-up changes after a plan is generated.
+                  Describe only what should change; the rest of the existing
+                  plan will be treated as context.
                 </p>
                 <RevisionField
                   label="Change"
@@ -1470,26 +1564,19 @@ export function WeddingPlannerApp() {
             )}
 
             <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={options.citeSources}
-                    onChange={(e) =>
-                      setOptions((prev) => ({ ...prev, citeSources: e.target.checked }))
-                    }
-                  />
-                  Use retrieval
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(options.ragDebug)}
-                    onChange={(e) =>
-                      setOptions((prev) => ({ ...prev, ragDebug: e.target.checked }))
-                    }
-                  />
-                  Debug
-                </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(options.ragDebug)}
+                  onChange={(e) =>
+                    setOptions((prev) => ({
+                      ...prev,
+                      ragDebug: e.target.checked,
+                    }))
+                  }
+                />
+                Show retrieval debug details
+              </label>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -1510,16 +1597,24 @@ export function WeddingPlannerApp() {
                 label="Make this cheaper"
                 onClick={() =>
                   output
-                    ? setRevisionChange("Make this cheaper without cutting food quality.")
-                    : updateBaseTask("Build a cheaper plan without cutting food quality.")
+                    ? setRevisionChange(
+                        "Make this cheaper without cutting food quality.",
+                      )
+                    : updateBaseTask(
+                        "Build a cheaper plan without cutting food quality.",
+                      )
                 }
               />
               <QuickAction
                 label="Adjust for 120 guests"
                 onClick={() =>
                   output
-                    ? setRevisionChange("Adjust this plan for 120 guests and show tradeoffs.")
-                    : updateBaseTask("Build a plan for 120 guests and show tradeoffs.")
+                    ? setRevisionChange(
+                        "Adjust this plan for 120 guests and show tradeoffs.",
+                      )
+                    : updateBaseTask(
+                        "Build a plan for 120 guests and show tradeoffs.",
+                      )
                 }
               />
               <QuickAction
@@ -1535,15 +1630,25 @@ export function WeddingPlannerApp() {
                 }
               />
             </div>
+            <p className="mt-3 text-sm text-slate-600">
+              Use the shortcut buttons to autofill common requests, then edit
+              the wording before generating or revising.
+            </p>
           </div>
 
           <div className="rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
-            <h2 className="text-xl font-semibold">2) Notes</h2>
+            <h2 className="text-xl font-semibold">Notes</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Add vendor quotes, local venue quotes, vendor restrictions, family constraints, accessibility needs, or other planning notes for retrieval.
+              Add vendor quotes, local venue quotes, vendor restrictions, family
+              constraints, accessibility needs, or other planning notes for
+              retrieval.
             </p>
 
-            <FormField label="Source name" value={knowledgeSource} onChange={setKnowledgeSource} />
+            <FormField
+              label="Source name"
+              value={knowledgeSource}
+              onChange={setKnowledgeSource}
+            />
             <label className="mt-3 block text-sm font-medium">Notes</label>
             <textarea
               className="mt-1 h-28 w-full rounded-xl border p-3"
@@ -1573,14 +1678,19 @@ export function WeddingPlannerApp() {
               )}
             </div>
 
-            {knowledgeStatus && <p className="mt-2 text-sm text-slate-600">{knowledgeStatus}</p>}
+            {knowledgeStatus && (
+              <p className="mt-2 text-sm text-slate-600">{knowledgeStatus}</p>
+            )}
 
             <div className="mt-4 space-y-2">
               {knowledgeDocs.length === 0 ? (
                 <p className="text-sm text-slate-500">No local notes yet.</p>
               ) : (
                 knowledgeDocs.map((doc) => (
-                  <div key={doc.id} className="rounded-xl border border-slate-200 p-3">
+                  <div
+                    key={doc.id}
+                    className="rounded-xl border border-slate-200 p-3"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-medium">{doc.source}</p>
@@ -1590,7 +1700,10 @@ export function WeddingPlannerApp() {
                         </p>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => beginEditDoc(doc)} className="rounded border px-3 py-1">
+                        <button
+                          onClick={() => beginEditDoc(doc)}
+                          className="rounded border px-3 py-1"
+                        >
                           Edit
                         </button>
                         <button
@@ -1611,8 +1724,12 @@ export function WeddingPlannerApp() {
         <section className="mt-6 rounded-3xl bg-white p-5 shadow ring-1 ring-slate-200">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-semibold">3) Wedding Plan Output</h2>
-              {saveStatus && <p className="mt-1 text-sm text-slate-600">{saveStatus}</p>}
+              <h2 className="text-xl font-semibold">
+                Your Personalized Wedding Plan
+              </h2>
+              {saveStatus && (
+                <p className="mt-1 text-sm text-slate-600">{saveStatus}</p>
+              )}
             </div>
             {output && (
               <button
@@ -1630,9 +1747,12 @@ export function WeddingPlannerApp() {
               </p>
               {latestSavedRevision && (
                 <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4">
-                  <p className="font-medium text-rose-900">Resume where you left off?</p>
+                  <p className="font-medium text-rose-900">
+                    Resume where you left off?
+                  </p>
                   <p className="mt-1 text-sm text-rose-800">
-                    Last saved {new Date(latestSavedRevision.createdAt).toLocaleString()}.
+                    Last saved{" "}
+                    {new Date(latestSavedRevision.createdAt).toLocaleString()}.
                   </p>
                   <button
                     onClick={() => resumeSavedPlan(latestSavedRevision)}
@@ -1656,7 +1776,9 @@ export function WeddingPlannerApp() {
                 <p className="mb-3 text-xs text-slate-500">
                   Stated budget: ${profile.totalBudget.toLocaleString()}
                 </p>
-                <p className="text-sm leading-6 text-slate-700">{output.summary}</p>
+                <p className="text-sm leading-6 text-slate-700">
+                  {output.summary}
+                </p>
               </SectionCard>
               <SectionCard title="Tradeoffs">
                 <BulletList items={output.tradeoffs} />
@@ -1697,7 +1819,9 @@ export function WeddingPlannerApp() {
                               onChange={(event) =>
                                 updateBudgetItem(
                                   index,
-                                  event.target.value === "" ? 0 : Number(event.target.value),
+                                  event.target.value === ""
+                                    ? 0
+                                    : Number(event.target.value),
                                 )
                               }
                             />
@@ -1708,18 +1832,24 @@ export function WeddingPlannerApp() {
                           </p>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-slate-600">{item.rationale}</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {item.rationale}
+                      </p>
                     </div>
                   ))}
                   {isEditingBudget && (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 shadow-sm">
-                      <p className="text-sm font-medium">Add Custom Budget Section</p>
+                      <p className="text-sm font-medium">
+                        Add Custom Budget Section
+                      </p>
                       <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
                         <input
                           className="rounded-lg border px-3 py-2 text-sm"
                           placeholder="Section name"
                           value={customBudgetCategory}
-                          onChange={(event) => setCustomBudgetCategory(event.target.value)}
+                          onChange={(event) =>
+                            setCustomBudgetCategory(event.target.value)
+                          }
                         />
                         <input
                           className="rounded-lg border px-3 py-2 text-sm"
@@ -1727,7 +1857,9 @@ export function WeddingPlannerApp() {
                           type="number"
                           min={0}
                           value={customBudgetAmount}
-                          onChange={(event) => setCustomBudgetAmount(event.target.value)}
+                          onChange={(event) =>
+                            setCustomBudgetAmount(event.target.value)
+                          }
                         />
                         <button
                           type="button"
@@ -1745,7 +1877,8 @@ export function WeddingPlannerApp() {
                 {output.vendorSuggestions.length === 0 ? (
                   <div className="max-h-[520px] space-y-3 overflow-y-auto pr-2">
                     <p className="text-sm text-slate-500">
-                      Add vendor quotes, contracted vendors, or venue details in Notes to populate the vendor tracker.
+                      Add vendor quotes, contracted vendors, or venue details in
+                      Notes to populate the vendor tracker.
                     </p>
                     {renderCustomVendorForm()}
                     {vendorStatus && (
@@ -1768,7 +1901,9 @@ export function WeddingPlannerApp() {
                                   className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
                                   value={vendor.category}
                                   onChange={(event) =>
-                                    updateVendor(index, { category: event.target.value })
+                                    updateVendor(index, {
+                                      category: event.target.value,
+                                    })
                                   }
                                 >
                                   {vendorCategories.map((category) => (
@@ -1785,12 +1920,15 @@ export function WeddingPlannerApp() {
                                   value={vendor.status}
                                   onChange={(event) =>
                                     updateVendor(index, {
-                                      status: event.target.value as VendorSuggestion["status"],
+                                      status: event.target
+                                        .value as VendorSuggestion["status"],
                                     })
                                   }
                                 >
                                   <option value="contracted">Contracted</option>
-                                  <option value="not_contracted">Needs contract</option>
+                                  <option value="not_contracted">
+                                    Needs contract
+                                  </option>
                                 </select>
                               </label>
                               <label className="text-xs font-medium text-slate-600">
@@ -1799,7 +1937,9 @@ export function WeddingPlannerApp() {
                                   className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
                                   value={vendor.name}
                                   onChange={(event) =>
-                                    updateVendor(index, { name: event.target.value })
+                                    updateVendor(index, {
+                                      name: event.target.value,
+                                    })
                                   }
                                 />
                               </label>
@@ -1809,7 +1949,9 @@ export function WeddingPlannerApp() {
                                   className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
                                   value={vendor.priceEstimate}
                                   onChange={(event) =>
-                                    updateVendor(index, { priceEstimate: event.target.value })
+                                    updateVendor(index, {
+                                      priceEstimate: event.target.value,
+                                    })
                                   }
                                 />
                               </label>
@@ -1820,7 +1962,9 @@ export function WeddingPlannerApp() {
                                   placeholder="Email, phone, Instagram"
                                   value={vendor.contact}
                                   onChange={(event) =>
-                                    updateVendor(index, { contact: event.target.value })
+                                    updateVendor(index, {
+                                      contact: event.target.value,
+                                    })
                                   }
                                 />
                               </label>
@@ -1830,7 +1974,9 @@ export function WeddingPlannerApp() {
                                   className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
                                   value={vendor.region}
                                   onChange={(event) =>
-                                    updateVendor(index, { region: event.target.value })
+                                    updateVendor(index, {
+                                      region: event.target.value,
+                                    })
                                   }
                                 />
                               </label>
@@ -1840,7 +1986,9 @@ export function WeddingPlannerApp() {
                                   className="mt-1 w-full rounded-lg border bg-white px-2 py-2 text-sm"
                                   value={vendor.source}
                                   onChange={(event) =>
-                                    updateVendor(index, { source: event.target.value })
+                                    updateVendor(index, {
+                                      source: event.target.value,
+                                    })
                                   }
                                 />
                               </label>
@@ -1851,7 +1999,9 @@ export function WeddingPlannerApp() {
                                 className="mt-1 h-20 w-full rounded-lg border bg-white px-2 py-2 text-sm"
                                 value={vendor.whyItFits}
                                 onChange={(event) =>
-                                  updateVendor(index, { whyItFits: event.target.value })
+                                  updateVendor(index, {
+                                    whyItFits: event.target.value,
+                                  })
                                 }
                               />
                             </label>
@@ -1877,12 +2027,18 @@ export function WeddingPlannerApp() {
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <p className="text-lg font-semibold text-rose-800">{vendor.category}</p>
+                                  <p className="text-lg font-semibold text-rose-800">
+                                    {vendor.category}
+                                  </p>
                                   <span className="rounded-md bg-rose-50 px-2 py-1 text-xs font-medium uppercase tracking-wide text-rose-700">
-                                    {vendor.status === "contracted" ? "Contracted" : "Needs contract"}
+                                    {vendor.status === "contracted"
+                                      ? "Contracted"
+                                      : "Needs contract"}
                                   </span>
                                 </div>
-                                <p className="mt-1 text-sm font-medium text-slate-900">{vendor.name}</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900">
+                                  {vendor.name}
+                                </p>
                               </div>
                               <button
                                 type="button"
@@ -1903,24 +2059,44 @@ export function WeddingPlannerApp() {
                             </div>
                             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                               <div>
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Price</dt>
-                                <dd className="text-slate-700">{vendor.priceEstimate || "not provided"}</dd>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                  Price
+                                </dt>
+                                <dd className="text-slate-700">
+                                  {vendor.priceEstimate || "not provided"}
+                                </dd>
                               </div>
                               <div>
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Region</dt>
-                                <dd className="text-slate-700">{vendor.region || "not provided"}</dd>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                  Region
+                                </dt>
+                                <dd className="text-slate-700">
+                                  {vendor.region || "not provided"}
+                                </dd>
                               </div>
                               <div className="sm:col-span-2">
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Contact</dt>
-                                <dd className="text-slate-700">{vendor.contact || "not provided"}</dd>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                  Contact
+                                </dt>
+                                <dd className="text-slate-700">
+                                  {vendor.contact || "not provided"}
+                                </dd>
                               </div>
                               <div className="sm:col-span-2">
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Notes</dt>
-                                <dd className="line-clamp-3 text-slate-700">{vendor.whyItFits || "No notes."}</dd>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                  Notes
+                                </dt>
+                                <dd className="line-clamp-3 text-slate-700">
+                                  {vendor.whyItFits || "No notes."}
+                                </dd>
                               </div>
                               <div className="sm:col-span-2">
-                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Source</dt>
-                                <dd className="text-slate-700">{vendor.source || "not provided"}</dd>
+                                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                  Source
+                                </dt>
+                                <dd className="text-slate-700">
+                                  {vendor.source || "not provided"}
+                                </dd>
                               </div>
                             </dl>
                           </>
@@ -1965,21 +2141,26 @@ export function WeddingPlannerApp() {
                 </div>
                 {(userId || sessionId) && (
                   <p className="mt-3 text-xs text-slate-500">
-                    userId: {userId || "pending"} | threadId: {threadId || "pending"} |
-                    revisionId: {sessionId || "pending"}
+                    userId: {userId || "pending"} | threadId:{" "}
+                    {threadId || "pending"} | revisionId:{" "}
+                    {sessionId || "pending"}
                   </p>
                 )}
               </SectionCard>
               <SectionCard title="Prompt Debug">
                 <details>
-                  <summary className="cursor-pointer font-medium">View assembled prompt</summary>
+                  <summary className="cursor-pointer font-medium">
+                    View assembled prompt
+                  </summary>
                   <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
                     {latestPrompt || "(no prompt yet)"}
                   </pre>
                 </details>
                 {ragDebug?.enabled && (
                   <details className="mt-3">
-                    <summary className="cursor-pointer font-medium">View retrieval debug</summary>
+                    <summary className="cursor-pointer font-medium">
+                      View retrieval debug
+                    </summary>
                     <pre className="mt-2 overflow-auto rounded bg-slate-100 p-3 text-xs whitespace-pre-wrap">
                       {JSON.stringify(ragDebug, null, 2)}
                     </pre>
@@ -2039,7 +2220,8 @@ function AuthenticatedTopBar({
           Signed in
         </p>
         <p className="mt-1 text-sm text-slate-600">
-          Planner data, survey progress, and retrieval notes are scoped to your account.
+          Planner data, survey progress, and retrieval notes are scoped to your
+          account.
         </p>
       </div>
       <UserMenu
@@ -2056,7 +2238,8 @@ function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Could not read the selected image."));
+    reader.onerror = () =>
+      reject(new Error("Could not read the selected image."));
     reader.readAsDataURL(file);
   });
 }
@@ -2224,7 +2407,10 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
   return (
     <div>
       <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-        <div className="h-full rounded-full bg-rose-500" style={{ width: percentage }} />
+        <div
+          className="h-full rounded-full bg-rose-500"
+          style={{ width: percentage }}
+        />
       </div>
       <p className="mt-2 text-xs text-slate-500">{percentage} complete</p>
     </div>
@@ -2234,7 +2420,11 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
 function Spinner({ label }: { label?: string }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" aria-hidden="true">
+      <svg
+        className="h-4 w-4 animate-spin"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
         <circle
           className="opacity-25"
           cx="12"
@@ -2340,7 +2530,13 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function QuickAction({ label, onClick }: { label: string; onClick: () => void }) {
+function QuickAction({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
   return (
     <button onClick={onClick} className="rounded-xl border px-4 py-2">
       {label}
@@ -2368,7 +2564,13 @@ function SectionCard({
   );
 }
 
-function BulletList({ items, emptyText = "None." }: { items: string[]; emptyText?: string }) {
+function BulletList({
+  items,
+  emptyText = "None.",
+}: {
+  items: string[];
+  emptyText?: string;
+}) {
   if (!items.length) {
     return <p className="text-sm text-slate-500">{emptyText}</p>;
   }
