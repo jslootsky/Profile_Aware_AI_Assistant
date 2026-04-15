@@ -222,6 +222,7 @@ export function WeddingPlannerApp() {
   const [savedVendors, setSavedVendors] = useState<SavedVendor[]>([]);
   const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const taskEditedRef = useRef(false);
+  const authTokenRef = useRef<string | null>(null);
 
   const currentStep = Math.min(
     profile.surveyStep,
@@ -301,6 +302,7 @@ export function WeddingPlannerApp() {
     setIsVendorChatLoading(false);
     setVendorChatError(null);
     setSavedVendors([]);
+    authTokenRef.current = null;
     taskEditedRef.current = false;
   }
 
@@ -310,13 +312,17 @@ export function WeddingPlannerApp() {
   }
 
   function applySession(session: Session | null) {
+    const nextToken = session?.access_token || null;
     if (session) {
       setAuthError(null);
       setIsSigningIn(false);
-      setPlannerDataReady(false);
+      if (nextToken !== authTokenRef.current) {
+        setPlannerDataReady(false);
+      }
     }
     setAuthUser(session?.user ? mapPlannerAuthUser(session.user) : null);
-    setAuthToken(session?.access_token || null);
+    setAuthToken(nextToken);
+    authTokenRef.current = nextToken;
     if (!session) {
       setPlannerDataReady(false);
     }
