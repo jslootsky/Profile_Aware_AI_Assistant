@@ -141,7 +141,7 @@ import { validateGenerateRequest } from "@/lib/wedding-validation";
 const DEFAULT_PROFILE: GenerateRequest["profile"] = DEFAULT_WEDDING_PROFILE;
 
 const DEFAULT_OPTIONS: GenerateRequest["options"] = {
-  verbosity: "medium",
+  verbosity: "high",
   reportType: "full-plan",
   citeSources: true,
   ragDebug: false,

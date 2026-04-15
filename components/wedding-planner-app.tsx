@@ -125,7 +125,7 @@ function formatVendorNote(vendor: VendorSuggestion) {
 }
 
 const defaultOptions: RequestOptions = {
-  verbosity: "medium",
+  verbosity: "high",
   reportType: "full-plan",
   citeSources: true,
   ragDebug: false,
@@ -1469,30 +1469,7 @@ export function WeddingPlannerApp() {
               </>
             )}
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <SelectField
-                label="Verbosity"
-                value={options.verbosity}
-                onChange={(value) =>
-                  setOptions((prev) => ({
-                    ...prev,
-                    verbosity: value as RequestOptions["verbosity"],
-                  }))
-                }
-                options={["low", "medium", "high"]}
-              />
-              <SelectField
-                label="Planner mode"
-                value={options.reportType}
-                onChange={(value) =>
-                  setOptions((prev) => ({
-                    ...prev,
-                    reportType: value as RequestOptions["reportType"],
-                  }))
-                }
-                options={["full-plan", "budget-revision", "vendor-shortlist"]}
-              />
-              <div className="flex items-end gap-4 text-sm">
+            <div className="mt-4 flex flex-wrap gap-4 text-sm">
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -1513,7 +1490,6 @@ export function WeddingPlannerApp() {
                   />
                   Debug
                 </label>
-              </div>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -1900,10 +1876,13 @@ export function WeddingPlannerApp() {
                           <>
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <p className="font-medium text-slate-900">{vendor.name}</p>
-                                <p className="mt-1 text-xs uppercase tracking-wide text-rose-700">
-                                  {vendor.category} | {vendor.status === "contracted" ? "Contracted" : "Needs contract"}
-                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-lg font-semibold text-rose-800">{vendor.category}</p>
+                                  <span className="rounded-md bg-rose-50 px-2 py-1 text-xs font-medium uppercase tracking-wide text-rose-700">
+                                    {vendor.status === "contracted" ? "Contracted" : "Needs contract"}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm font-medium text-slate-900">{vendor.name}</p>
                               </div>
                               <button
                                 type="button"
