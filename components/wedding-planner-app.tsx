@@ -154,7 +154,8 @@ type ThemeKey =
   | "green"
   | "purple"
   | "orange"
-  | "brown";
+  | "brown"
+  | "dark";
 
 type ThemePalette = {
   key: ThemeKey;
@@ -169,6 +170,14 @@ type ThemePalette = {
   panelEnd: string;
   dark: string;
   darkEnd: string;
+  pageStart?: string;
+  pageEnd?: string;
+  surface?: string;
+  surfaceStrong?: string;
+  text?: string;
+  muted?: string;
+  line?: string;
+  shadow?: string;
 };
 
 const themePalettes: ThemePalette[] = [
@@ -256,6 +265,28 @@ const themePalettes: ThemePalette[] = [
     dark: "#4b3a31",
     darkEnd: "#332821",
   },
+  {
+    key: "dark",
+    label: "Dark",
+    primary: "#d65a70",
+    primaryDark: "#9d2f45",
+    primaryRgb: "214, 90, 112",
+    secondary: "#2f3a46",
+    secondaryRgb: "47, 58, 70",
+    accentText: "#f0a5b2",
+    panelStart: "#20242d",
+    panelEnd: "#2f3a46",
+    dark: "#171a21",
+    darkEnd: "#0f1117",
+    pageStart: "#111318",
+    pageEnd: "#1b1f29",
+    surface: "rgba(31, 35, 44, 0.9)",
+    surfaceStrong: "rgba(39, 44, 55, 0.94)",
+    text: "#f8efe8",
+    muted: "#cfc3ba",
+    line: "#45414a",
+    shadow: "0 18px 45px rgba(0, 0, 0, 0.32)",
+  },
 ];
 
 function getThemeStyle(theme: ThemePalette): CSSProperties {
@@ -270,6 +301,16 @@ function getThemeStyle(theme: ThemePalette): CSSProperties {
     "--theme-panel-end": theme.panelEnd,
     "--theme-dark": theme.dark,
     "--theme-dark-end": theme.darkEnd,
+    "--theme-page-start": theme.pageStart || "#fcfbf9",
+    "--theme-page-end": theme.pageEnd || "#fcfbf9",
+    "--theme-surface": theme.surface || "rgba(255, 255, 255, 0.84)",
+    "--theme-surface-strong":
+      theme.surfaceStrong || "rgba(255, 255, 255, 0.9)",
+    "--theme-text": theme.text || "#3f332d",
+    "--theme-muted": theme.muted || "#7a6b63",
+    "--theme-line": theme.line || "#eaded8",
+    "--theme-shadow":
+      theme.shadow || "0 18px 45px rgba(92, 73, 61, 0.12)",
   } as CSSProperties;
 }
 
@@ -1809,7 +1850,7 @@ export function WeddingPlannerApp() {
               </div>
             )}
 
-            <label className="mt-4 block text-sm font-medium">
+            <label className="mt-4 block text-sm font-medium text-[var(--theme-text)]">
               Planning request
             </label>
             <p className="romantic-muted mt-1 text-sm leading-6">
@@ -1829,7 +1870,7 @@ export function WeddingPlannerApp() {
 
             {output && (
               <>
-                <label className="mt-4 block text-sm font-medium">
+                <label className="mt-4 block text-sm font-medium text-[var(--theme-text)]">
                   Revise this plan
                 </label>
                 <p className="romantic-muted mt-1 text-sm leading-6">
@@ -1847,7 +1888,7 @@ export function WeddingPlannerApp() {
             )}
 
             <div className="mt-4 flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-[var(--theme-text)]">
                 <input
                   type="checkbox"
                   checked={Boolean(options.ragDebug)}
@@ -1932,7 +1973,9 @@ export function WeddingPlannerApp() {
               value={knowledgeSource}
               onChange={setKnowledgeSource}
             />
-            <label className="mt-3 block text-sm font-medium">Notes</label>
+            <label className="mt-3 block text-sm font-medium text-[var(--theme-text)]">
+              Notes
+            </label>
             <textarea
               className="romantic-input mt-2 h-32 w-full p-4 text-sm leading-6"
               value={knowledgeContent}
@@ -3109,7 +3152,9 @@ function FormField({
 }) {
   return (
     <div>
-      <label className="mt-3 block text-sm font-medium">{label}</label>
+      <label className="mt-3 block text-sm font-medium text-[var(--theme-text)]">
+        {label}
+      </label>
       <input
         className="romantic-input mt-1 w-full p-3"
         value={value}
@@ -3132,7 +3177,9 @@ function RevisionField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium">{label}</label>
+      <label className="block text-sm font-medium text-[var(--theme-text)]">
+        {label}
+      </label>
       <textarea
         className="romantic-input mt-1 h-24 w-full p-3 text-sm"
         value={value}
@@ -3156,7 +3203,9 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium">{label}</label>
+      <label className="block text-sm font-medium text-[var(--theme-text)]">
+        {label}
+      </label>
       <select
         className="romantic-input mt-1 w-full p-3 text-sm"
         value={value}

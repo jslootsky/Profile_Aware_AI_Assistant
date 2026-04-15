@@ -25,6 +25,14 @@
   --theme-panel-end: #f6dfe4;
   --theme-dark: #4f4139;
   --theme-dark-end: #382e29;
+  --theme-page-start: #fcfbf9;
+  --theme-page-end: #fcfbf9;
+  --theme-surface: rgba(255, 255, 255, 0.84);
+  --theme-surface-strong: rgba(255, 255, 255, 0.9);
+  --theme-text: #3f332d;
+  --theme-muted: #7a6b63;
+  --theme-line: #eaded8;
+  --theme-shadow: 0 18px 45px rgba(92, 73, 61, 0.12);
 }
 
 body {
@@ -45,14 +53,14 @@ body {
       transparent 30rem
     ),
     var(--wedding-bg);
-  color: var(--wedding-ink);
+  color: var(--theme-text);
   font-family: "Montserrat", "Open Sans", system-ui, sans-serif;
 }
 
 h1,
 h2,
 h3 {
-  color: var(--wedding-ink);
+  color: var(--theme-text);
   font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
   letter-spacing: 0;
 }
@@ -60,7 +68,7 @@ h3 {
 textarea,
 input,
 select {
-  color: var(--wedding-ink);
+  color: var(--theme-text);
 }
 
 textarea:focus,
@@ -92,9 +100,9 @@ select:focus {
     ),
     linear-gradient(
       180deg,
-      #fcfbf9 0%,
+      var(--theme-page-start) 0%,
       var(--theme-panel-start) 48%,
-      #fcfbf9 100%
+      var(--theme-page-end) 100%
     );
 }
 
@@ -110,8 +118,7 @@ select:focus {
       circle at 1px 1px,
       rgba(var(--theme-primary-rgb), 0.2) 1px,
       transparent 0
-    ),
-    url("data:image/svg+xml,%3Csvg width='180' height='180' viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23dfe9dc' stroke-width='1.4' stroke-linecap='round' opacity='0.75'%3E%3Cpath d='M28 126c30-46 62-64 104-72'/%3E%3Cpath d='M68 88c-19 0-30-8-35-24 16-2 28 6 35 24Z'/%3E%3Cpath d='M102 70c-10-16-9-30 4-42 11 12 9 28-4 42Z'/%3E%3Cpath d='M126 58c13-11 27-12 40-2-9 13-23 15-40 2Z'/%3E%3C/g%3E%3C/svg%3E");
+    );
   background-position:
     0 0,
     right 2rem top 4rem;
@@ -120,25 +127,47 @@ select:focus {
     360px 360px;
 }
 
+.romantic-page::after {
+  pointer-events: none;
+  content: "";
+  position: fixed;
+  right: clamp(-8rem, -5vw, -2rem);
+  top: clamp(5rem, 10vh, 9rem);
+  z-index: 0;
+  width: clamp(24rem, 38vw, 42rem);
+  height: clamp(28rem, 46vw, 50rem);
+  opacity: 0.16;
+  background: var(--theme-primary);
+  transform: rotate(-18deg);
+  transform-origin: center;
+  mask: url("../assets/flower-plant-icon.svg") center / contain no-repeat;
+  -webkit-mask: url("../assets/flower-plant-icon.svg") center / contain no-repeat;
+}
+
 .romantic-page > * {
   position: relative;
   z-index: 1;
 }
 
+.romantic-page label,
+.romantic-page .font-medium {
+  color: var(--theme-text);
+}
+
 .romantic-card {
-  border: 1px solid rgba(234, 222, 216, 0.9);
+  border: 1px solid var(--theme-line);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: var(--wedding-shadow);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow);
   backdrop-filter: blur(12px);
 }
 
 .romantic-panel {
-  border: 1px solid rgba(234, 222, 216, 0.9);
+  border: 1px solid var(--theme-line);
   border-radius: 12px;
   background: linear-gradient(
     135deg,
-    rgba(255, 250, 244, 0.94),
+    color-mix(in srgb, var(--theme-panel-start) 88%, transparent),
     color-mix(in srgb, var(--theme-panel-end) 62%, transparent)
   );
   box-shadow: 0 14px 35px rgba(92, 73, 61, 0.1);
@@ -153,7 +182,7 @@ select:focus {
 }
 
 .romantic-muted {
-  color: var(--wedding-muted);
+  color: var(--theme-muted);
 }
 
 .romantic-button-primary {
@@ -184,10 +213,10 @@ select:focus {
 }
 
 .romantic-button-secondary {
-  border: 1px solid rgba(202, 184, 175, 0.9);
+  border: 1px solid var(--theme-line);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.84);
-  color: var(--wedding-ink);
+  background: var(--theme-surface-strong);
+  color: var(--theme-text);
   box-shadow: 0 8px 18px rgba(92, 73, 61, 0.08);
   transition:
     transform 160ms ease,
@@ -196,22 +225,22 @@ select:focus {
 }
 
 .romantic-button-secondary:hover:not(:disabled) {
-  background: #fffaf4;
+  background: color-mix(in srgb, var(--theme-panel-start) 88%, white);
   transform: translateY(-1px);
   box-shadow: 0 12px 24px rgba(92, 73, 61, 0.12);
 }
 
 .romantic-input {
-  border: 1px solid rgba(202, 184, 175, 0.9);
+  border: 1px solid var(--theme-line);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--theme-surface-strong);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
 .romantic-chip {
   border: 1px solid rgba(var(--theme-primary-rgb), 0.26);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--theme-surface-strong);
   color: var(--theme-accent-text);
 }
 
@@ -225,7 +254,7 @@ select:focus {
       transparent 18rem
     ),
     linear-gradient(145deg, var(--theme-dark) 0%, var(--theme-dark-end) 100%);
-  box-shadow: var(--wedding-shadow);
+  box-shadow: var(--theme-shadow);
   color: #fffaf4;
 }
 
@@ -237,13 +266,13 @@ select:focus {
 
 .romantic-page .text-slate-900,
 .romantic-page .text-slate-950 {
-  color: var(--wedding-ink);
+  color: var(--theme-text);
 }
 
 .romantic-page .text-slate-800,
 .romantic-page .text-slate-700,
 .romantic-page .text-slate-600 {
-  color: var(--wedding-muted);
+  color: var(--theme-muted);
 }
 
 .romantic-page .text-slate-500,
@@ -258,11 +287,11 @@ select:focus {
 }
 
 .romantic-page .bg-slate-50 {
-  background-color: rgba(252, 251, 249, 0.82);
+  background-color: color-mix(in srgb, var(--theme-surface) 82%, transparent);
 }
 
 .romantic-page .bg-slate-100 {
-  background-color: #f4e9dc;
+  background-color: color-mix(in srgb, var(--theme-panel-end) 64%, white);
 }
 
 .romantic-page .border-slate-200,
@@ -270,7 +299,7 @@ select:focus {
 .romantic-page .border-rose-100,
 .romantic-page .border-rose-200,
 .romantic-page .border-rose-300 {
-  border-color: var(--wedding-line);
+  border-color: var(--theme-line);
 }
 
 .romantic-page .bg-rose-50 {
@@ -283,5 +312,32 @@ select:focus {
 
 .romantic-page .bg-slate-900,
 .romantic-page .bg-slate-950 {
-  background-color: #4f4139;
+  background-color: var(--theme-dark);
+}
+
+.romantic-page .bg-white,
+.romantic-page .bg-white\/70,
+.romantic-page .bg-white\/72,
+.romantic-page .bg-white\/80,
+.romantic-page .bg-white\/90,
+.romantic-page .bg-white\/95 {
+  background-color: var(--theme-surface-strong);
+}
+
+.romantic-page .text-\[\#3f332d\],
+.romantic-page .text-\[\#5f5149\] {
+  color: var(--theme-text);
+}
+
+.romantic-page .text-\[\#9a8a82\] {
+  color: var(--theme-muted);
+}
+
+.romantic-page .border-\[\#eaded8\],
+.romantic-page .border-\[\#cab8af\] {
+  border-color: var(--theme-line);
+}
+
+.romantic-page .bg-\[\#fcfbf9\]\/80 {
+  background-color: color-mix(in srgb, var(--theme-surface) 82%, transparent);
 }
