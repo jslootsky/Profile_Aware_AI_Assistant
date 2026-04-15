@@ -156,6 +156,7 @@ import path from "path";
 import crypto from "crypto";
 import {
   KnowledgeDocument,
+  SavedVendor,
   StoredSessionOutput,
   StoredUser,
   WeddingProfile,
@@ -166,6 +167,7 @@ interface DataStore {
   profiles: Record<string, WeddingProfile>; //mapping of userId to a user's profile/preferences
   sessions: StoredSessionOutput[]; //a list of saved outputs (AI reports, etc) tied to a userId
   docs: KnowledgeDocument[]; //a list of knowledge documents for RAG tied to a userId
+  savedVendors?: SavedVendor[];
 }
 
 const DATA_PATH = path.join(process.cwd(), "data", "store.json");
@@ -178,7 +180,13 @@ async function ensureStore(): Promise<DataStore> {
     return JSON.parse(raw) as DataStore;
   } catch (e) {
     await mkdir(path.dirname(DATA_PATH), { recursive: true }); //recursive in case /data doesn't exist
-    const seed: DataStore = { users: [], profiles: {}, sessions: [], docs: [] };
+    const seed: DataStore = {
+      users: [],
+      profiles: {},
+      sessions: [],
+      docs: [],
+      savedVendors: [],
+    };
     await writeFile(DATA_PATH, JSON.stringify(seed, null, 2));
     return seed;
   }
@@ -287,6 +295,55 @@ export async function deleteKnowledgeDoc(id: string) {
   const index = store.docs.findIndex((doc) => doc.id === id);
   if (index === -1) return false;
   store.docs.splice(index, 1);
+  await saveStore(store);
+  return true;
+}
+
+export async function listSavedVendors(userId: string) {
+  const store = await ensureStore();
+  return (store.savedVendors || []).filter((vendor) => vendor.userId === userId);
+}
+
+export async function saveVendor(
+  vendor: Omit<SavedVendor, "id" | "createdAt">,
+) {
+  const store = await ensureStore();
+  store.savedVendors ||= [];
+
+  const existing = store.savedVendors.find(
+    (item) =>
+      item.userId === vendor.userId &&
+      item.websiteUrl.toLowerCase() === vendor.websiteUrl.toLowerCase(),
+  );
+
+  if (existing) {
+    existing.name = vendor.name;
+    existing.category = vendor.category;
+    existing.region = vendor.region;
+    existing.description = vendor.description;
+    existing.source = vendor.source;
+    await saveStore(store);
+    return existing;
+  }
+
+  const created: SavedVendor = {
+    ...vendor,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+  };
+  store.savedVendors.unshift(created);
+  await saveStore(store);
+  return created;
+}
+
+export async function deleteSavedVendor(userId: string, id: string) {
+  const store = await ensureStore();
+  store.savedVendors ||= [];
+  const index = store.savedVendors.findIndex(
+    (vendor) => vendor.id === id && vendor.userId === userId,
+  );
+  if (index === -1) return false;
+  store.savedVendors.splice(index, 1);
   await saveStore(store);
   return true;
 }

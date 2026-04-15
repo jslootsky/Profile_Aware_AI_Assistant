@@ -1,13 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase";
 import {
+  deleteSavedVendor as deleteLocalSavedVendor,
   getProfile as getLocalProfile,
   listSessions as listLocalSessions,
+  listSavedVendors as listLocalSavedVendors,
   saveProfile as saveLocalProfile,
   saveSession as saveLocalSession,
+  saveVendor as saveLocalVendor,
   updateSessionFeedback as updateLocalSessionFeedback,
 } from "./store";
-import { StoredSessionOutput, WeddingProfile } from "./types";
+import { SavedVendor, StoredSessionOutput, WeddingProfile } from "./types";
 
 type WeddingProfileRow = {
   user_id: string;
@@ -32,6 +35,18 @@ type PlannerSessionRow = {
   created_at: string;
 };
 
+type SavedVendorRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string;
+  region: string;
+  website_url: string;
+  description: string;
+  source: string;
+  created_at: string;
+};
+
 function mapSessionRow(row: PlannerSessionRow): StoredSessionOutput {
   return {
     id: row.id,
@@ -43,6 +58,20 @@ function mapSessionRow(row: PlannerSessionRow): StoredSessionOutput {
     revisionRequest: row.revision_request || row.refinement || "",
     rating: row.rating || undefined,
     feedback: row.feedback || undefined,
+    createdAt: row.created_at,
+  };
+}
+
+function mapSavedVendorRow(row: SavedVendorRow): SavedVendor {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    category: row.category,
+    region: row.region,
+    websiteUrl: row.website_url,
+    description: row.description,
+    source: row.source,
     createdAt: row.created_at,
   };
 }
@@ -184,4 +213,82 @@ export async function listPlannerSessions(
   }
 
   return ((data || []) as PlannerSessionRow[]).map(mapSessionRow);
+}
+
+export async function listPlannerSavedVendors(
+  userId: string,
+  supabaseClient?: SupabaseClient,
+) {
+  if (!isSupabaseConfigured()) {
+    return listLocalSavedVendors(userId);
+  }
+
+  const supabase = supabaseClient || getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("saved_vendors")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data || []) as SavedVendorRow[]).map(mapSavedVendorRow);
+}
+
+export async function savePlannerVendor(
+  vendor: Omit<SavedVendor, "id" | "createdAt">,
+  supabaseClient?: SupabaseClient,
+) {
+  if (!isSupabaseConfigured()) {
+    return saveLocalVendor(vendor);
+  }
+
+  const supabase = supabaseClient || getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("saved_vendors")
+    .upsert(
+      {
+        user_id: vendor.userId,
+        name: vendor.name,
+        category: vendor.category,
+        region: vendor.region,
+        website_url: vendor.websiteUrl,
+        description: vendor.description,
+        source: vendor.source,
+      },
+      { onConflict: "user_id,website_url" },
+    )
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapSavedVendorRow(data as SavedVendorRow);
+}
+
+export async function deletePlannerSavedVendor(
+  userId: string,
+  id: string,
+  supabaseClient?: SupabaseClient,
+) {
+  if (!isSupabaseConfigured()) {
+    return deleteLocalSavedVendor(userId, id);
+  }
+
+  const supabase = supabaseClient || getSupabaseAdmin();
+  const { error, count } = await supabase
+    .from("saved_vendors")
+    .delete({ count: "exact" })
+    .eq("user_id", userId)
+    .eq("id", id);
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(count);
 }
