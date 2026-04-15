@@ -141,7 +141,7 @@ import { validateGenerateRequest } from "@/lib/wedding-validation";
 const DEFAULT_PROFILE: GenerateRequest["profile"] = DEFAULT_WEDDING_PROFILE;
 
 const DEFAULT_OPTIONS: GenerateRequest["options"] = {
-  verbosity: "medium",
+  verbosity: "high",
   reportType: "full-plan",
   citeSources: true,
   ragDebug: false,
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       threadId: incoming.threadId,
       previousOutput: incoming.previousOutput || null,
       revisionRequest: incoming.revisionRequest ?? "",
-      options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}) },
+      options: { ...DEFAULT_OPTIONS, ...(incoming.options || {}), citeSources: true },
     };
 
     // Resolve user identity (cookie/header) and persist profile
