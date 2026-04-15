@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { GoogleSignInLanding } from "@/components/google-sign-in-landing";
 import { UserMenu, type PlannerAuthUser } from "@/components/user-menu";
@@ -141,6 +148,131 @@ const defaultOptions: RequestOptions = {
   ragDebug: false,
 };
 
+type ThemeKey =
+  | "romantic"
+  | "blue"
+  | "green"
+  | "purple"
+  | "orange"
+  | "brown";
+
+type ThemePalette = {
+  key: ThemeKey;
+  label: string;
+  primary: string;
+  primaryDark: string;
+  primaryRgb: string;
+  secondary: string;
+  secondaryRgb: string;
+  accentText: string;
+  panelStart: string;
+  panelEnd: string;
+  dark: string;
+  darkEnd: string;
+};
+
+const themePalettes: ThemePalette[] = [
+  {
+    key: "romantic",
+    label: "Romantic red",
+    primary: "#c93446",
+    primaryDark: "#9f1f32",
+    primaryRgb: "201, 52, 70",
+    secondary: "#f6dfe4",
+    secondaryRgb: "246, 223, 228",
+    accentText: "#7c5960",
+    panelStart: "#fffaf4",
+    panelEnd: "#f6dfe4",
+    dark: "#4f4139",
+    darkEnd: "#382e29",
+  },
+  {
+    key: "blue",
+    label: "Blue",
+    primary: "#3177b7",
+    primaryDark: "#1f4f82",
+    primaryRgb: "49, 119, 183",
+    secondary: "#dbeaf8",
+    secondaryRgb: "219, 234, 248",
+    accentText: "#355a78",
+    panelStart: "#f7fbff",
+    panelEnd: "#dbeaf8",
+    dark: "#314457",
+    darkEnd: "#233240",
+  },
+  {
+    key: "green",
+    label: "Green",
+    primary: "#4f8f63",
+    primaryDark: "#2f6844",
+    primaryRgb: "79, 143, 99",
+    secondary: "#dfe9dc",
+    secondaryRgb: "223, 233, 220",
+    accentText: "#4d6b4a",
+    panelStart: "#fbfff8",
+    panelEnd: "#dfe9dc",
+    dark: "#37483a",
+    darkEnd: "#263428",
+  },
+  {
+    key: "purple",
+    label: "Purple",
+    primary: "#8b64b0",
+    primaryDark: "#60427f",
+    primaryRgb: "139, 100, 176",
+    secondary: "#ebe4f6",
+    secondaryRgb: "235, 228, 246",
+    accentText: "#604a76",
+    panelStart: "#fdfaff",
+    panelEnd: "#ebe4f6",
+    dark: "#43374f",
+    darkEnd: "#31283b",
+  },
+  {
+    key: "orange",
+    label: "Orange",
+    primary: "#c76f3b",
+    primaryDark: "#944a23",
+    primaryRgb: "199, 111, 59",
+    secondary: "#f5dfcc",
+    secondaryRgb: "245, 223, 204",
+    accentText: "#79513b",
+    panelStart: "#fffaf4",
+    panelEnd: "#f5dfcc",
+    dark: "#513d31",
+    darkEnd: "#3a2d25",
+  },
+  {
+    key: "brown",
+    label: "Brown",
+    primary: "#8f5e45",
+    primaryDark: "#613e2e",
+    primaryRgb: "143, 94, 69",
+    secondary: "#eaded8",
+    secondaryRgb: "234, 222, 216",
+    accentText: "#664b3e",
+    panelStart: "#fffaf4",
+    panelEnd: "#eaded8",
+    dark: "#4b3a31",
+    darkEnd: "#332821",
+  },
+];
+
+function getThemeStyle(theme: ThemePalette): CSSProperties {
+  return {
+    "--theme-primary": theme.primary,
+    "--theme-primary-dark": theme.primaryDark,
+    "--theme-primary-rgb": theme.primaryRgb,
+    "--theme-secondary": theme.secondary,
+    "--theme-secondary-rgb": theme.secondaryRgb,
+    "--theme-accent-text": theme.accentText,
+    "--theme-panel-start": theme.panelStart,
+    "--theme-panel-end": theme.panelEnd,
+    "--theme-dark": theme.dark,
+    "--theme-dark-end": theme.darkEnd,
+  } as CSSProperties;
+}
+
 function mapPlannerAuthUser(user: User): PlannerAuthUser {
   return {
     id: user.id,
@@ -209,6 +341,7 @@ export function WeddingPlannerApp() {
   const [isSavingSurvey, setIsSavingSurvey] = useState(false);
   const [isEditingSurvey, setIsEditingSurvey] = useState(false);
   const [showSurveySummary, setShowSurveySummary] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<ThemeKey>("romantic");
   const [isVendorChatOpen, setIsVendorChatOpen] = useState(false);
   const [vendorChatScreen, setVendorChatScreen] = useState<"chat" | "saved">(
     "chat",
@@ -257,6 +390,10 @@ export function WeddingPlannerApp() {
     [isOnboardingComplete, output, revisionRequest, task],
   );
   const latestSavedRevision = savedRevisions[0] || null;
+  const activeTheme =
+    themePalettes.find((theme) => theme.key === selectedTheme) ||
+    themePalettes[0];
+  const themeStyle = useMemo(() => getThemeStyle(activeTheme), [activeTheme]);
 
   function resetPlannerState() {
     setProfile(DEFAULT_WEDDING_PROFILE);
@@ -291,6 +428,7 @@ export function WeddingPlannerApp() {
     setIsSavingSurvey(false);
     setIsEditingSurvey(false);
     setShowSurveySummary(false);
+    setSelectedTheme("romantic");
     setIsGenerating(false);
     setAvatarStatus(null);
     setIsVendorChatOpen(false);
@@ -1284,7 +1422,10 @@ export function WeddingPlannerApp() {
 
   if (!authReady) {
     return (
-      <main className="romantic-page flex min-h-screen items-center justify-center text-[#5f5149]">
+      <main
+        className="romantic-page flex min-h-screen items-center justify-center text-[#5f5149]"
+        style={themeStyle}
+      >
         <Spinner label="Checking session..." />
       </main>
     );
@@ -1303,7 +1444,10 @@ export function WeddingPlannerApp() {
 
   if (!plannerDataReady) {
     return (
-      <main className="romantic-page flex min-h-screen items-center justify-center text-[#5f5149]">
+      <main
+        className="romantic-page flex min-h-screen items-center justify-center text-[#5f5149]"
+        style={themeStyle}
+      >
         <Spinner label="Loading your wedding planner..." />
       </main>
     );
@@ -1311,13 +1455,18 @@ export function WeddingPlannerApp() {
 
   if (showSurveySummary) {
     return (
-      <main className="romantic-page min-h-screen p-6 text-[#3f332d]">
+      <main
+        className="romantic-page min-h-screen p-6 text-[#3f332d]"
+        style={themeStyle}
+      >
         <div className="mx-auto max-w-6xl">
           <AuthenticatedTopBar
             user={authUser}
             onSignOut={handleSignOut}
             onUploadAvatar={handleAvatarUpload}
             isSigningOut={isSigningOut}
+            selectedTheme={selectedTheme}
+            onThemeChange={setSelectedTheme}
           />
         </div>
         <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-4xl items-center justify-center">
@@ -1380,13 +1529,18 @@ export function WeddingPlannerApp() {
 
   if (isSurveyMode) {
     return (
-      <main className="romantic-page min-h-screen p-6 text-[#3f332d]">
+      <main
+        className="romantic-page min-h-screen p-6 text-[#3f332d]"
+        style={themeStyle}
+      >
         <div className="mx-auto max-w-6xl">
           <AuthenticatedTopBar
             user={authUser}
             onSignOut={handleSignOut}
             onUploadAvatar={handleAvatarUpload}
             isSigningOut={isSigningOut}
+            selectedTheme={selectedTheme}
+            onThemeChange={setSelectedTheme}
           />
           {avatarStatus && (
             <p className="romantic-muted mt-3 text-sm">{avatarStatus}</p>
@@ -1604,13 +1758,15 @@ export function WeddingPlannerApp() {
   }
 
   return (
-    <main className="romantic-page min-h-screen text-[#3f332d]">
+    <main className="romantic-page min-h-screen text-[#3f332d]" style={themeStyle}>
       <div className="mx-auto max-w-7xl p-6">
         <AuthenticatedTopBar
           user={authUser}
           onSignOut={handleSignOut}
           onUploadAvatar={handleAvatarUpload}
           isSigningOut={isSigningOut}
+          selectedTheme={selectedTheme}
+          onThemeChange={setSelectedTheme}
         />
         {avatarStatus && (
           <p className="romantic-muted mt-3 text-sm">{avatarStatus}</p>
@@ -2664,11 +2820,15 @@ function AuthenticatedTopBar({
   onSignOut,
   onUploadAvatar,
   isSigningOut,
+  selectedTheme,
+  onThemeChange,
 }: {
   user: PlannerAuthUser;
   onSignOut: () => void;
   onUploadAvatar: (file: File) => Promise<void> | void;
   isSigningOut: boolean;
+  selectedTheme: ThemeKey;
+  onThemeChange: (theme: ThemeKey) => void;
 }) {
   return (
     <div className="romantic-card flex items-center justify-between gap-4 px-5 py-4">
@@ -2679,12 +2839,52 @@ function AuthenticatedTopBar({
           account.
         </p>
       </div>
-      <UserMenu
-        user={user}
-        onSignOut={onSignOut}
-        onUploadAvatar={onUploadAvatar}
-        isSigningOut={isSigningOut}
-      />
+      <div className="flex items-center gap-3">
+        <ThemeSelector selectedTheme={selectedTheme} onThemeChange={onThemeChange} />
+        <UserMenu
+          user={user}
+          onSignOut={onSignOut}
+          onUploadAvatar={onUploadAvatar}
+          isSigningOut={isSigningOut}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ThemeSelector({
+  selectedTheme,
+  onThemeChange,
+}: {
+  selectedTheme: ThemeKey;
+  onThemeChange: (theme: ThemeKey) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2" aria-label="Theme options">
+      {themePalettes.map((theme) => {
+        const isActive = selectedTheme === theme.key;
+        return (
+          <button
+            key={theme.key}
+            type="button"
+            aria-label={`Use ${theme.label} theme`}
+            aria-pressed={isActive}
+            onClick={() => onThemeChange(theme.key)}
+            className={`h-9 w-9 rounded-full border bg-white p-1 shadow-sm transition ${
+              isActive
+                ? "border-[var(--theme-primary)] ring-4 ring-[rgba(var(--theme-primary-rgb),0.16)]"
+                : "border-[#eaded8] hover:-translate-y-0.5 hover:shadow-md"
+            }`}
+          >
+            <span
+              className="block h-full w-full rounded-full"
+              style={{
+                background: `linear-gradient(135deg, ${theme.primary} 0 49%, ${theme.secondary} 50% 100%)`,
+              }}
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }
