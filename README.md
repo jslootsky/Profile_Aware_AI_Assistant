@@ -88,7 +88,7 @@ Optional:
 - `RAG_CHUNK_SIZE`
 - `RAG_CHUNK_OVERLAP`
 
-Use `.env.supabase.example` as a template, but copy values into `.env.local` or `.env`.
+Use `.env.example` as a template, but copy values into `.env.local` or `.env`.
 
 ## Supabase setup
 
@@ -112,22 +112,6 @@ Notes:
 - Planner data is keyed to `auth.users` and RLS is enabled in the SQL schema.
 - The browser uses the anon key for Google sign-in; the server verifies bearer tokens with the service-role key.
 - Use the service-role key on the server only. Do not expose it in client code.
-
-## Migrating local knowledge docs to Supabase
-
-After Supabase is configured, run:
-
-```bash
-npm run migrate:supabase-knowledge
-```
-
-The migration:
-
-- reads documents from `data/store.json`
-- writes them to `knowledge_documents`
-- reuses local embeddings from `data/vector-store.json` when possible
-- only calls OpenAI for docs that do not already have local embeddings
-- continues past per-document indexing failures and reports them at the end
 
 ## Testing
 
@@ -163,10 +147,6 @@ Validated in this repo with:
 
 ## Next steps for production
 
-- Transition from a locally stored text-based storage to a proper database
-- Add chunking + overlap for knowledge ingestion and retrieve top-N chunks.
 - Add score thresholding and optional reranking.
-- Add doc tags and profile-aware pre-filtering.
-- Replace file store with DB + vector index.
-- Replace lightweight identity with robust auth + tenant isolation.
 - Expand automated tests for RAG, profile scoping, and API validation.
+- remotely hosted
