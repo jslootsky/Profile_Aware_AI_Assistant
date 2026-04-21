@@ -1647,7 +1647,7 @@ export function WeddingPlannerApp() {
                       : "Answer one question at a time. Sign-in is already complete, so this is the only thing to focus on before planning begins."}
                   </p>
                 </div>
-                <span className="romantic-chip px-4 py-2 text-sm font-medium">
+                <span className="romantic-chip shrink-0 px-4 py-2 text-sm font-medium">
                   Step {currentStep + 1} of {weddingSurveySchema.length}
                 </span>
               </div>
@@ -2874,7 +2874,7 @@ function AuthenticatedTopBar({
   onThemeChange: (theme: ThemeKey) => void;
 }) {
   return (
-    <div className="romantic-card flex items-center justify-between gap-4 px-5 py-4">
+    <div className="romantic-card relative z-40 flex items-center justify-between gap-4 px-5 py-4">
       <div>
         <p className="romantic-eyebrow">Signed in</p>
         <p className="romantic-muted mt-1 text-sm">

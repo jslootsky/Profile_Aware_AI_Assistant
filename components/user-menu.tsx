@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface PlannerAuthUser {
   id: string;
@@ -23,13 +24,51 @@ export function UserMenu({
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  useEffect(() => {
+    function updateMenuPosition() {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuWidth = 256;
+      const left = Math.min(
+        Math.max(rect.right - menuWidth, 16),
+        window.innerWidth - menuWidth - 16,
+      );
+      setMenuPosition({
+        top: rect.bottom + 12,
+        left,
+      });
+    }
+
+    if (open) {
+      updateMenuPosition();
+    }
+
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
       if (
         containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current.contains(target) &&
+        (!menuRef.current || !menuRef.current.contains(target))
       ) {
         setOpen(false);
       }
@@ -57,7 +96,7 @@ export function UserMenu({
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative z-50">
       <input
         ref={fileInputRef}
         type="file"
@@ -66,6 +105,7 @@ export function UserMenu({
         className="hidden"
       />
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
         className="romantic-button-secondary flex items-center gap-3 rounded-full px-3 py-2"
@@ -81,45 +121,52 @@ export function UserMenu({
         </span>
       </button>
 
-      {open && (
-        <div className="romantic-card absolute right-0 z-20 mt-3 w-64 p-3">
-          <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={avatarSrc}
-              alt={displayName}
-              className="h-12 w-12 rounded-full object-cover"
-            />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-[#3f332d]">{displayName}</p>
-              {user.email && (
-                <p className="romantic-muted mt-1 truncate text-xs">{user.email}</p>
-              )}
-            </div>
-          </div>
-          <div className="mt-4 space-y-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="romantic-button-secondary w-full px-4 py-2 text-left text-sm font-medium disabled:opacity-50"
+      {open && mounted
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className="romantic-card fixed w-64 p-3"
+              style={{ top: menuPosition.top, left: menuPosition.left, zIndex: 2000 }}
             >
-              {isUploading ? "Uploading photo..." : "Upload profile picture"}
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onSignOut();
-            }}
-            disabled={isSigningOut}
-            className="romantic-button-secondary mt-4 w-full px-4 py-2 text-left text-sm font-medium disabled:opacity-50"
-          >
-            {isSigningOut ? "Signing out..." : "Sign out"}
-          </button>
-        </div>
-      )}
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={avatarSrc}
+                  alt={displayName}
+                  className="h-12 w-12 rounded-full object-cover"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#3f332d]">{displayName}</p>
+                  {user.email && (
+                    <p className="romantic-muted mt-1 truncate text-xs">{user.email}</p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="romantic-button-secondary w-full px-4 py-2 text-left text-sm font-medium disabled:opacity-50"
+                >
+                  {isUploading ? "Uploading photo..." : "Upload profile picture"}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onSignOut();
+                }}
+                disabled={isSigningOut}
+                className="romantic-button-secondary mt-4 w-full px-4 py-2 text-left text-sm font-medium disabled:opacity-50"
+              >
+                {isSigningOut ? "Signing out..." : "Sign out"}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
